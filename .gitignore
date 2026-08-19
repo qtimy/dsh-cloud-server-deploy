@@ -1,0 +1,24 @@
+# ---- 密钥/敏感信息（绝不入库）----
+.env
+*.env
+.env.*
+!.env.example
+
+# credentials 与运行时配置
+.credentials.yaml
+/etc/dsh-web.env
+
+# ---- 渲染产物（由 install.sh 生成）----
+deploy.env
+/opt/
+
+# ---- 运行时数据 ----
+.dsh/
+profiles/*/node_modules/
+node_modules/
+pnpm-lock.yaml
+package-lock.json
+
+# ---- 系统 ----
+*.log
+.DS_Store
