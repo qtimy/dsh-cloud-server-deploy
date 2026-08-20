@@ -1,117 +1,76 @@
 #!/usr/bin/env bash
-# setup-letsencrypt.sh — 可选的 LetsEncrypt 正式证书配置（需公网域名）
-#
-# ⚠️ 本脚本【不是 install.sh 的必选步骤】。仅当目标服务器有公网域名、
-#    且你想用 Let's Encrypt 免费证书时才手动执行。无域名/内网/纯 IP 的
-#    服务器请用 install.sh 默认的自签证书，不要跑本脚本。
-#
-# 前置条件：
-#   1. 域名已解析到本机公网 IP（dig +short <域名>）
-#   2. 80 端口可被 Let's Encrypt 从公网访问（用于 HTTP-01 验证）
-#   3. 已先执行 install.sh（nginx 已就位，监听 80/443）
-#
-# 用法：
-#   sudo bash scripts/setup-letsencrypt.sh <域名> [邮箱]
-#   例：sudo bash scripts/setup-letsencrypt.sh dsh.example.com admin@example.com
-#
-# 效果：签发证书 → 切换 nginx 到正式证书 → 配置自动续期 → 验证证书链。
-set -euo pipefail
+# Install a trusted Let's Encrypt certificate after the base deployment.
+set -Eeuo pipefail
+
+if [[ ${EUID} -ne 0 ]]; then
+  echo "ERROR: run as root: sudo $0 <domain> [email]" >&2
+  exit 2
+fi
 
 DOMAIN="${1:-}"
 EMAIL="${2:-}"
+DEPLOY_DIR="${DEPLOY_DIR:-/opt/dsh-deploy}"
+NGINX_CONF=/etc/nginx/sites-available/dsh
 
-if [ -z "$DOMAIN" ]; then
-  echo "ERROR: 缺少域名参数" >&2
-  echo "用法: sudo bash scripts/setup-letsencrypt.sh <域名> [邮箱]" >&2
-  exit 1
+if [[ ! "${DOMAIN}" =~ ^[A-Za-z0-9.-]+$ ]]; then
+  echo "ERROR: provide a valid domain name." >&2
+  exit 2
 fi
-# 域名格式校验（防注入）
-if [[ ! "$DOMAIN" =~ ^[a-zA-Z0-9.-]+$ ]]; then
-  echo "ERROR: 域名格式非法: $DOMAIN" >&2
-  exit 1
+EMAIL="${EMAIL:-admin@${DOMAIN}}"
+if [[ ! "${EMAIL}" =~ ^[^[:space:]@]+@[^[:space:]@]+$ ]]; then
+  echo "ERROR: provide a valid contact email." >&2
+  exit 2
 fi
-if [ "$(id -u)" -ne 0 ]; then
-  echo "ERROR: 需要 root 权限（装 certbot、改 nginx、写 /etc/letsencrypt）" >&2
-  exit 1
-fi
-[ -n "$EMAIL" ] || EMAIL="admin@${DOMAIN#*.}"
-
-echo "===== 1/6 前置检查：域名解析到本机公网 IP ====="
-PUBLIC_IP="$(curl -s --max-time 10 ifconfig.me 2>/dev/null || curl -s --max-time 10 https://api.ipify.org 2>/dev/null || echo '')"
-DOMAIN_IP="$(getent hosts "$DOMAIN" 2>/dev/null | awk '{print $1}' | head -1 || echo '')"
-echo "域名 ${DOMAIN} → ${DOMAIN_IP:-解析失败}"
-echo "本机公网 IP → ${PUBLIC_IP:-无法获取}"
-if [ -n "$PUBLIC_IP" ] && [ -n "$DOMAIN_IP" ] && [ "$PUBLIC_IP" != "$DOMAIN_IP" ]; then
-  echo "⚠️  警告：域名解析 IP 与本机公网 IP 不一致，证书签发可能失败。" >&2
-  echo "    请确认 DNS 记录指向本机，或 CDN/代理已正确回源。" >&2
+if [[ ! -f "${NGINX_CONF}" ]]; then
+  echo "ERROR: run install.sh before setting up Let's Encrypt." >&2
+  exit 2
 fi
 
-echo "===== 2/6 安装 certbot 与 nginx 插件 ====="
+echo "===== 1/5 install Certbot ====="
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y certbot python3-certbot-nginx >/dev/null 2>&1
+apt-get install -y certbot >/dev/null
 
-echo "===== 3/6 临时注入 ACME 挑战放行（webroot）====="
+echo "===== 2/5 enable the ACME HTTP-01 path ====="
 mkdir -p /var/www/certbot/.well-known/acme-challenge
-# 在 80 端口 server 块注入 /.well-known/acme-challenge/ 放行（幂等）
-NGINX_CONF=/etc/nginx/sites-available/dsh
-if ! grep -q 'acme-challenge' "$NGINX_CONF" 2>/dev/null; then
-  python3 - "$NGINX_CONF" <<'PY'
-import sys
-p = sys.argv[1]
-s = open(p).read()
-old = '''    listen 80 default_server;
-    listen [::]:80 default_server;
-    server_name _;
-    return 301 https://$host$request_uri;'''
-new = '''    listen 80 default_server;
-    listen [::]:80 default_server;
-    server_name _;
-    # ACME HTTP-01 挑战放行（certbot webroot，签发正式证书用）
-    location ^~ /.well-known/acme-challenge/ {
-        root /var/www/certbot;
-        default_type text/plain;
+if ! grep -q 'acme-challenge' "${NGINX_CONF}"; then
+  candidate="$(mktemp)"
+  awk '
+    { print }
+    !added && /^[[:space:]]*server_name _;/ {
+      print "    location ^~ /.well-known/acme-challenge/ { root /var/www/certbot; }"
+      added=1
     }
-    location / {
-        return 301 https://$host$request_uri;
-    }'''
-if old in s:
-    open(p, 'w').write(s.replace(old, new, 1))
-    print("ACME 放行已注入")
-else:
-    print("WARN: 未找到标准 80 端口块，请手动确认")
-PY
+  ' "${NGINX_CONF}" > "${candidate}"
+  install -m 0644 "${candidate}" "${NGINX_CONF}"
+  rm -f "${candidate}"
 fi
-nginx -t && systemctl reload nginx
+nginx -t
+systemctl reload nginx
 
-echo "===== 4/6 签发证书（webroot 模式）====="
+echo "===== 3/5 request the certificate ====="
 certbot certonly --webroot -w /var/www/certbot \
-  -d "$DOMAIN" \
-  --email "$EMAIL" \
-  --agree-tos --no-eff-email --rsa-key-size 2048
+  -d "${DOMAIN}" --email "${EMAIL}" --agree-tos --no-eff-email --non-interactive
 
-echo "===== 5/6 切换 nginx 443 到正式证书 ====="
 CERT="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
 KEY="/etc/letsencrypt/live/${DOMAIN}/privkey.pem"
-python3 - "$NGINX_CONF" "$CERT" "$KEY" <<'PY'
-import sys
-p, cert, key = sys.argv[1], sys.argv[2], sys.argv[3]
-s = open(p).read()
-import re
-s2 = re.sub(r'ssl_certificate\s+[^;]+;', f'ssl_certificate     {cert};', s, count=1)
-s2 = re.sub(r'ssl_certificate_key\s+[^;]+;', f'ssl_certificate_key {key};', s2, count=1)
-open(p, 'w').write(s2)
-print("证书路径已切换")
-PY
-nginx -t && systemctl reload nginx
 
-echo "===== 6/6 验证证书链 ====="
-sleep 2
-echo | openssl s_client -connect "${DOMAIN}:443" -servername "$DOMAIN" 2>/dev/null \
-  | grep -E 'subject=|issuer=|Verify return code' | head -4
+echo "===== 4/5 switch Nginx and persist the certificate paths ====="
+sed -i -E "s|^[[:space:]]*ssl_certificate[[:space:]]+[^;]+;|    ssl_certificate     ${CERT};|" \
+  "${NGINX_CONF}"
+sed -i -E "s|^[[:space:]]*ssl_certificate_key[[:space:]]+[^;]+;|    ssl_certificate_key ${KEY};|" \
+  "${NGINX_CONF}"
+mkdir -p "${DEPLOY_DIR}"
+printf 'SSL_CERT_PATH=%s\nSSL_KEY_PATH=%s\n' "${CERT}" "${KEY}" > "${DEPLOY_DIR}/tls.env"
+chmod 0600 "${DEPLOY_DIR}/tls.env"
+nginx -t
+systemctl reload nginx
 
-echo ""
-echo "===== 完成 ====="
-echo "https://${DOMAIN}/ 已使用 Let's Encrypt 正式证书。"
-echo "certbot 已配置自动续期（systemd timer）。"
-echo "提示：续期后 nginx 会自动 reload（certbot renew 钩子已由插件处理）。"
+echo "===== 5/5 install a renewal deploy hook ====="
+install -d -m 0755 /etc/letsencrypt/renewal-hooks/deploy
+printf '#!/usr/bin/env bash\nnginx -t && systemctl reload nginx\n' \
+  > /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
+chmod 0755 /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
+certbot renew --dry-run
+
+echo "OK: https://${DOMAIN}/ now uses Let's Encrypt."

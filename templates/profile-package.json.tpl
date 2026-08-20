@@ -5,19 +5,8 @@
     "profile": {
       "bundles": [
         "@deepseek-ai/dsh-base",
-        "@deepseek-ai/dsh-web-app",
-        "@linxin666/dsh-web-ui-all"
+        "@deepseek-ai/dsh-web-app"
       ]
     }
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "cloudflared",
-      "cpu-features",
-      "ssh2"
-    ]
-  },
-  "dependencies": {
-    "@linxin666/dsh-web-ui-all": "${WEB_UI_ALL_VERSION}"
   }
 }

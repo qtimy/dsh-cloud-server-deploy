@@ -11,7 +11,14 @@ server {
     listen 80 default_server;
     listen [::]:80 default_server;
     server_name _;
-    return 301 https://$host$request_uri;
+    # Harmless before Certbot is configured; required for HTTP-01 renewal.
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+        default_type text/plain;
+    }
+    location / {
+        return 301 https://$host$request_uri;
+    }
 }
 server {
     listen 443 ssl default_server;
@@ -21,6 +28,8 @@ server {
     ssl_certificate     ${SSL_CERT_PATH};
     ssl_certificate_key ${SSL_KEY_PATH};
     ssl_protocols TLSv1.2 TLSv1.3;
+
+    client_max_body_size 110m;
 
     # ---- Basic Auth：浏览器加密打开时的登录账号 ----
     auth_basic "DSH Login";
@@ -35,6 +44,7 @@ server {
 
     # 不缓冲流式响应（SSE/事件流即时下发）
     proxy_buffering off;
+    proxy_request_buffering off;
 
     proxy_connect_timeout 60s;
     proxy_read_timeout 3600s;
@@ -48,13 +58,15 @@ server {
     proxy_set_header X-Forwarded-Proto $scheme;
 
     # 带 rev 哈希的静态资源永久缓存
-    location ~* ^/(assets|plugins)/.*.(js|css|svg|png|woff2?|map)$ {
+    location ~* ^/(assets|plugins)/.*\.(js|css|svg|png|woff2?|map)$ {
         proxy_set_header Host 127.0.0.1;
         proxy_set_header Origin http://127.0.0.1;
         # 必须保留：location 内任何 proxy_set_header 都会整体替换 server 级继承，
         # 少了这两行 WebSocket 升级头就会被剥掉 → /api/events.* 全部 426，实时推送全挂。
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $connection_upgrade;
+        # Basic Auth terminates at Nginx; never forward its credential upstream.
+        proxy_set_header Authorization "";
         proxy_pass http://127.0.0.1:${DSH_PORT};
         add_header Cache-Control "public, max-age=31536000, immutable";
     }
@@ -65,6 +77,7 @@ server {
         # 同上：必须保留 Upgrade/Connection，否则 WebSocket 升级失败
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $connection_upgrade;
+        proxy_set_header Authorization "";
         proxy_pass http://127.0.0.1:${DSH_PORT};
     }
 }
