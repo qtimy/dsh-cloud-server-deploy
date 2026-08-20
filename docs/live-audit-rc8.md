@@ -39,3 +39,11 @@ Additional observations:
 - Optional packages are installed through `dsh plugin` and remain removable dependencies.
 - Compatibility edits may target plugin-owned files, but never the global DSH installation.
 - The deployment verifier treats volatile links, mixed core versions, config warnings, missing client bundles, restarts, and known boot errors as failures.
+
+## Authenticated browser follow-up
+
+RC.8 intentionally chooses an in-memory settings controller when the browser page URL is not loopback. On the reference public deployment this hid the Models catalog and left plugin configuration empty even though Nginx already enforced Basic Auth.
+
+The follow-up installs `dsh-nginx-auth-settings` as a client-only profile plugin. Its Nginx marker returns 401 without Basic Auth and does not exist on direct port 3080. After the authenticated same-origin marker succeeds, the plugin enables RC.8's existing host-backed controller before the official settings UI is mounted. No DSH package file is changed.
+
+The existing sidebar/skin helper also referenced a generated CSS-module hash that changed in `dsh-better-sidebar@0.12.1`. Version `0.1.1` now selects the stable `_toggleCluster` suffix. Both plugins served HTTP 200, the generated config had no warnings, and DSH remained stable after activation.

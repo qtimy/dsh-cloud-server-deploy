@@ -25,6 +25,7 @@ set +a
 
 DSH_VERSION="${DSH_VERSION:-}"
 WEB_UI_ALL_VERSION="${WEB_UI_ALL_VERSION:-}"
+PUBLIC_SETTINGS_OVER_BASIC_AUTH="${PUBLIC_SETTINGS_OVER_BASIC_AUTH:-true}"
 DSH_PORT="${DSH_PORT:-3080}"
 DSH_USER="${DSH_USER:-ubuntu}"
 DEPLOY_DIR="${DEPLOY_DIR:-/opt/dsh-deploy}"
@@ -41,6 +42,10 @@ if [[ ! "${DSH_VERSION}" =~ ${exact_version_re} ]]; then
 fi
 if [[ -n "${WEB_UI_ALL_VERSION}" && ! "${WEB_UI_ALL_VERSION}" =~ ${exact_version_re} ]]; then
   echo "ERROR: WEB_UI_ALL_VERSION must be empty or an exact version." >&2
+  exit 2
+fi
+if [[ "${PUBLIC_SETTINGS_OVER_BASIC_AUTH}" != true && "${PUBLIC_SETTINGS_OVER_BASIC_AUTH}" != false ]]; then
+  echo "ERROR: PUBLIC_SETTINGS_OVER_BASIC_AUTH must be true or false." >&2
   exit 2
 fi
 if [[ -z "${TRUSTED_HOST}" || "${TRUSTED_HOST}" == "your-server-ip-or-domain" ]]; then
@@ -143,6 +148,24 @@ chown -R "${DSH_USER}:${DSH_USER}" "${PROFILE_DIR}"
 sudo -u "${DSH_USER}" -H bash -c "cd '${PROFILE_DIR}' && pnpm install --frozen-lockfile=false"
 
 echo "===== 4/8 optional profile plugins ====="
+install_bundled_plugin() {
+  local plugin_name=$1
+  local source_dir="${REPO_DIR}/plugins/${plugin_name}"
+  local target_dir="${DSH_HOME_TARGET}/plugins/${plugin_name}"
+  install -d -o "${DSH_USER}" -g "${DSH_USER}" -m 0755 "${target_dir}/lib"
+  install -o "${DSH_USER}" -g "${DSH_USER}" -m 0644 \
+    "${source_dir}/package.json" "${target_dir}/package.json"
+  install -o "${DSH_USER}" -g "${DSH_USER}" -m 0644 \
+    "${source_dir}/cordis.patch.yml" "${target_dir}/cordis.patch.yml"
+  install -o "${DSH_USER}" -g "${DSH_USER}" -m 0644 \
+    "${source_dir}/README.md" "${target_dir}/README.md"
+  install -o "${DSH_USER}" -g "${DSH_USER}" -m 0644 \
+    "${source_dir}/lib/index.js" "${target_dir}/lib/index.js"
+  install -o "${DSH_USER}" -g "${DSH_USER}" -m 0644 \
+    "${source_dir}/lib/client.js" "${target_dir}/lib/client.js"
+  sudo -u "${DSH_USER}" -H dsh plugin --profile web add "${target_dir}"
+}
+
 if [[ -n "${WEB_UI_ALL_VERSION}" ]]; then
   installed_web_ui="$(node -e '
     try {
@@ -158,8 +181,12 @@ if [[ -n "${WEB_UI_ALL_VERSION}" ]]; then
   fi
   sudo -u "${DSH_USER}" -H env DSH_HOME="${DSH_HOME_TARGET}" \
     bash "${REPO_DIR}/scripts/patch-plugins-key.sh"
+  install_bundled_plugin dsh-better-sidebar-skin-yield
 else
   echo "WEB_UI_ALL_VERSION is empty; keeping an official-core-only profile"
+fi
+if [[ "${PUBLIC_SETTINGS_OVER_BASIC_AUTH}" == true ]]; then
+  install_bundled_plugin dsh-nginx-auth-settings
 fi
 
 echo "===== 5/8 deployment helpers and environment ====="
@@ -167,7 +194,10 @@ mkdir -p "${DEPLOY_DIR}" /etc
 cat > "${DEPLOY_DIR}/deploy.env" <<EOF
 DSH_USER=${DSH_USER}
 DSH_PORT=${DSH_PORT}
+TRUSTED_HOST=${TRUSTED_HOST}
 EOF
+printf '{"authenticated":true}\n' > "${DEPLOY_DIR}/public-auth.json"
+chmod 0644 "${DEPLOY_DIR}/public-auth.json"
 install -m 0755 "${REPO_DIR}/scripts/update.sh" "${DEPLOY_DIR}/update.sh"
 install -m 0755 "${REPO_DIR}/scripts/verify.sh" "${DEPLOY_DIR}/verify.sh"
 install -m 0755 "${REPO_DIR}/scripts/dsh-autorestart.sh" "${DEPLOY_DIR}/dsh-autorestart.sh"
@@ -204,7 +234,8 @@ chmod 0640 /etc/nginx/.htpasswd
 chown root:www-data /etc/nginx/.htpasswd
 
 export SSL_CERT_PATH SSL_KEY_PATH DSH_PORT
-envsubst '${SSL_CERT_PATH} ${SSL_KEY_PATH} ${DSH_PORT}' \
+export DEPLOY_DIR
+envsubst '${SSL_CERT_PATH} ${SSL_KEY_PATH} ${DSH_PORT} ${DEPLOY_DIR}' \
   < "${REPO_DIR}/nginx/dsh.conf.tpl" > /etc/nginx/sites-available/dsh
 ln -sfn /etc/nginx/sites-available/dsh /etc/nginx/sites-enabled/dsh
 rm -f /etc/nginx/sites-enabled/default

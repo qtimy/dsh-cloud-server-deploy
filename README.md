@@ -31,6 +31,7 @@ Official DSH web profile :3080
 - Exact-version DSH installation (`0.1.0-rc.8` in this release).
 - Optional Web UI aggregate plugin (`0.1.12`, the version validated on RC.8).
 - Nginx HTTP→HTTPS redirect, TLS, Basic Auth, WebSocket/SSE support, upload sizing, and stripped upstream Basic credentials.
+- An optional client-only authenticated-edge bridge that restores Models and plugin settings in RC.8 public browsers without patching core.
 - A systemd DSH service and a root-owned package-change watcher that can restart it safely.
 - Safe upgrades with complete DSH dependency-tree validation and automatic rollback.
 - `scripts/verify.sh`, which validates:
@@ -85,6 +86,10 @@ Persistent local plugins must live under a durable path such as `/home/ubuntu/.d
 
 The Web UI `settings.plugin.item` compatibility fix is intentionally limited to the plugin's own generated client file. It does not touch DSH core.
 
+RC.8 otherwise restricts its settings and credential plane to loopback page URLs. With `PUBLIC_SETTINGS_OVER_BASIC_AUTH=true`, the installer adds `dsh-nginx-auth-settings`: it requires an authenticated same-origin marker from Nginx before selecting RC.8's host-backed settings controller. The DSH listener remains loopback-only and the marker does not exist on port 3080.
+
+The bundled `dsh-better-sidebar-skin-yield` plugin moves sidebar controls below fake-window skin title bars using a stable CSS-module suffix rather than a generated class hash.
+
 ## Upgrade or rollback
 
 Always specify an exact target version:
@@ -129,5 +134,6 @@ See [the RC.8 live audit](docs/live-audit-rc8.md) and [the changelog](CHANGELOG.
 - Never commit `.env`; it contains the Basic Auth password and may contain API keys.
 - The generated password file uses bcrypt and is readable only by root/Nginx.
 - Nginx authenticates public traffic and removes the Basic `Authorization` header before proxying to DSH.
+- Public settings access assumes the entire HTTPS edge is protected by Nginx Basic Auth; disable `PUBLIC_SETTINGS_OVER_BASIC_AUTH` if another deployment does not provide that boundary.
 - DSH listens only on `127.0.0.1`; expose ports 80/443, not 3080.
 - The optional self-signed certificate encrypts traffic but does not provide public identity verification.

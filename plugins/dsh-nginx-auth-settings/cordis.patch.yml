@@ -1,0 +1,11 @@
+# RC.8 creates settingsScope in memory-only mode for every non-loopback page.
+# Disable that early row and remount it after our authenticated edge check.
+- id: ui-settings
+  name: '@deepseek-ai/dsh-client-ui-settings'
+  disabled: true
+
+- insert:
+    - id: nginx-auth-settings-trust
+      name: dsh-nginx-auth-settings
+    - id: ui-settings-nginx-auth
+      name: '@deepseek-ai/dsh-client-ui-settings'

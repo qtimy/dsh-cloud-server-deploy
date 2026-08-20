@@ -35,6 +35,14 @@ server {
     auth_basic "DSH Login";
     auth_basic_user_file /etc/nginx/.htpasswd;
 
+    # Static proof consumed by the client-only settings trust plugin. Using a
+    # static content handler (not `return`) ensures Nginx runs Basic Auth first.
+    location = /api/dsh-public-auth {
+        alias ${DEPLOY_DIR}/public-auth.json;
+        default_type application/json;
+        add_header Cache-Control "no-store";
+    }
+
     # 压缩静态资源（前端 JS/CSS 体积大，gzip 减 60-70%）
     gzip on;
     gzip_vary on;

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1-rc.8 — 2026-08-20
+
+- Restore Models and plugin configuration for authenticated public browsers with a client-only Nginx trust plugin.
+- Keep RC.8 core clean and preserve the loopback-only restriction on direct port 3080.
+- Fix the sidebar/skin title-bar layout helper by replacing its stale generated CSS class with a hash-independent selector.
+
 ## 0.2.0-rc.8 — 2026-08-20
 
 - Upgrade the tested DSH baseline from `0.1.0-rc.7` to `0.1.0-rc.8`.
