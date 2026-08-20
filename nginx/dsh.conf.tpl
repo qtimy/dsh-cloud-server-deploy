@@ -65,8 +65,9 @@ server {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
 
-    # 带 rev 哈希的静态资源永久缓存
-    location ~* ^/(assets|plugins)/.*\.(js|css|svg|png|woff2?|map)$ {
+    # Only the core /assets/ filenames are content-hashed. Plugin bundle URLs
+    # are stable across upgrades and must flow through the uncached location /.
+    location ~* ^/assets/.*\.(js|css|svg|png|woff2?|map)$ {
         proxy_set_header Host 127.0.0.1;
         proxy_set_header Origin http://127.0.0.1;
         # 必须保留：location 内任何 proxy_set_header 都会整体替换 server 级继承，

@@ -26,6 +26,10 @@ grep -q 'Environment=DSH_HOME=/home/__DSH_USER__/.dsh' \
   systemd/dsh-autorestart.service.tpl
 grep -q 'proxy_set_header Authorization "";' nginx/dsh.conf.tpl
 grep -q 'alias ${DEPLOY_DIR}/public-auth.json;' nginx/dsh.conf.tpl
+if grep -q 'assets|plugins' nginx/dsh.conf.tpl; then
+  echo 'plugin bundles must not receive immutable asset caching' >&2
+  exit 1
+fi
 grep -q 'ui-settings-nginx-auth' plugins/dsh-nginx-auth-settings/cordis.patch.yml
 grep -q '\[class\*="_toggleCluster"\]' \
   plugins/dsh-better-sidebar-skin-yield/lib/client.js
