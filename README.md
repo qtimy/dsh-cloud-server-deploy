@@ -1,5 +1,7 @@
 # DSH Cloud Server Deploy
 
+English | [简体中文](README.zh-CN.md)
+
 A small, public deployment layer for exposing the official DeepSeek Harness
 (DSH) web application over HTTPS on Ubuntu or Debian.
 
