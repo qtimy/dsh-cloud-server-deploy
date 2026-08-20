@@ -10,7 +10,7 @@
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%E2%89%A522-green)](https://nodejs.org)
-[![Tests](https://img.shields.io/badge/tests-121%20passing-brightgreen)](#development)
+[![Tests](https://img.shields.io/badge/tests-122%20passing-brightgreen)](#development)
 
 </div>
 
@@ -169,7 +169,7 @@ node scripts/expose-gui-settings.mjs --profile web   # 把 shift-router 加入�
 | `/router on` / `/router off` | 启用 / 停用（会话级） |
 | `/router verbose` | 详细日志开关 |
 | `/router orchestrate auto\|off` | 编排模式 |
-| `/router catalog` | 重新读取部署 provider/model 目录，并显示订阅、内置 PAYG、自定义 PAYG 分类 |
+| `/router catalog` | 重新读取完整部署 provider 目录，并显示 active/dormant 状态、订阅、内置 PAYG、自定义 PAYG 分类 |
 | `/router config` | 交互式编辑器：带编号的字段列表（含当前值）+ 可用 providers + 用法 |
 | `/router config get <N\|path>` | 显示单个字段当前值，如 `get 4` 或 `get routing.judgeTimeout` |
 | `/router config set <N\|path> <value>` | 设置单个字段（持久化），如 `set 4 8000`、`set tiers.fast.models [...]`（JSON 值自动解析） |
@@ -210,7 +210,7 @@ node scripts/expose-gui-settings.mjs --profile web   # 把 shift-router 加入�
 
 ```sh
 npm run build       # tsc（host → dist/）+ tsc client + tsdown（client bundle → dist/client.js）
-npm test            # vitest（121 个测试：顶层/子代理路由、目录、故障转移、编排、配置、GUI）
+npm test            # vitest（122 个测试：顶层/子代理路由、目录、故障转移、编排、配置、GUI）
 npm run typecheck
 ```
 

@@ -1,6 +1,6 @@
 {
   "name": "dsh-shift-router",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Deployment-aware top-level and subagent model router for DeepSeek Harness, with orchestration, model-catalog ranking, and runtime failover.",
   "keywords": [
     "dsh-plugin",

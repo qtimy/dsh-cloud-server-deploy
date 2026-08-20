@@ -329,7 +329,6 @@ export function apply(ctx: Context, rawConfig?: ShiftRouterConfig): void {
     catalogRefresh = (async () => {
       const providers = ctx.llm.listProviders()
       const configurable = ctx.llm.listConfigurableProviders()
-      const custom = new Set(configurable.filter((entry) => entry.declared === true).map((entry) => entry.provider))
       const modelEntries = await Promise.all(providers.map(async (provider) => {
         try {
           return [provider.id, await ctx.llm.listModels(provider.id)] as const
@@ -347,14 +346,22 @@ export function apply(ctx: Context, rawConfig?: ShiftRouterConfig): void {
           ...(model.inputModalities === undefined ? {} : { inputModalities: model.inputModalities }),
         }))
       }
-      deploymentCatalog = buildDeploymentCatalog(providers, modelsByProvider, custom, Date.now())
+      deploymentCatalog = buildDeploymentCatalog(providers, configurable, modelsByProvider, Date.now())
+      const activeCount = deploymentCatalog.providers.filter((provider) => provider.active).length
+      const dormantCount = deploymentCatalog.providers.length - activeCount
       const subscriptionCount = deploymentCatalog.providers.filter((provider) => provider.billing === 'subscription').length
       const customCount = deploymentCatalog.providers.filter((provider) => provider.custom).length
       ctx.logger.info(
-        '[shift-router] deployment catalog checked (%d providers, %d subscription, %d custom PAYG)',
+        '[shift-router] deployment catalog checked (%d known, %d active, %d dormant, %d subscription, %d custom PAYG)',
         deploymentCatalog.providers.length,
+        activeCount,
+        dormantCount,
         subscriptionCount,
         customCount,
+      )
+      ctx.logger.info(
+        '[shift-router] deployment providers: %s',
+        deploymentCatalog.providers.map((provider) => `${provider.id}:${provider.active ? 'active' : 'dormant'}${provider.custom ? ':custom-PAYG' : ''}`).join(', '),
       )
       return deploymentCatalog
     })().finally(() => {

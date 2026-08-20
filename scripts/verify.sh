@@ -98,9 +98,9 @@ fi
 if [[ "${SHIFT_ROUTER_ENABLED}" == true ]]; then
   shift_target="$(readlink -f "${PROFILE}/node_modules/dsh-shift-router")"
   [[ "${shift_target}" == "${DSH_HOME_TARGET}/plugins/dsh-shift-router" ]]
-  [[ "$(node -p "require('${shift_target}/package.json').version")" == 0.6.0 ]]
+  [[ "$(node -p "require('${shift_target}/package.json').version")" == 0.6.1 ]]
   [[ -s "${shift_target}/dist/index.js" && -s "${shift_target}/dist/client.js" ]]
-  echo "[verify] Shift-Router 0.6.0 persistent link and bundles are valid"
+  echo "[verify] Shift-Router 0.6.1 persistent link and bundles are valid"
 fi
 [[ -s "${DEPLOY_DIR}/dsh-public-settings-bootstrap.js" ]]
 grep -q 'dsh-public-settings-bootstrap.js' /etc/nginx/sites-available/dsh

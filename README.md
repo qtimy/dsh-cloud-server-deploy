@@ -32,7 +32,7 @@ Official DSH web profile :3080
 - Optional Web UI aggregate plugin (`0.1.12`, the version validated on RC.8).
 - Nginx HTTP→HTTPS redirect, TLS, Basic Auth, WebSocket/SSE support, upload sizing, and stripped upstream Basic credentials.
 - An optional client-only authenticated-edge bridge that restores Models and plugin settings in RC.8 public browsers without patching core.
-- Optional bundled `dsh-shift-router` 0.6.0: Fast/Smart routing, Smart CTO
+- Optional bundled `dsh-shift-router` 0.6.1: Fast/Smart routing, Smart CTO
   orchestration, and six-class deployment-aware subagent routing.
 - A systemd DSH service and a root-owned package-change watcher that can restart it safely.
 - Safe upgrades with complete DSH dependency-tree validation and automatic rollback.

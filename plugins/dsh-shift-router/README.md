@@ -10,7 +10,7 @@ A DSH adaptation of [pi-shift-router](https://github.com/green-dalii/pi-shift-ro
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%E2%89%A522-green)](https://nodejs.org)
-[![Tests](https://img.shields.io/badge/tests-121%20passing-brightgreen)](#development)
+[![Tests](https://img.shields.io/badge/tests-122%20passing-brightgreen)](#development)
 
 </div>
 
@@ -169,7 +169,7 @@ node scripts/expose-gui-settings.mjs --profile web   # adds shift-router to the 
 | `/router on` / `/router off` | Enable / disable (session-scoped) |
 | `/router verbose` | Toggle verbose router logging |
 | `/router orchestrate auto\|off` | Orchestration mode |
-| `/router catalog` | Re-read the deployment provider/model catalog and show subscription, built-in PAYG, and custom PAYG classifications |
+| `/router catalog` | Re-read the complete deployment provider directory, show active/dormant state plus subscription, built-in PAYG, and custom PAYG classifications |
 | `/router config` | Interactive editor: numbered field list with current values + available providers + usage |
 | `/router config get <N\|path>` | Show one field's current value, e.g. `get 4` or `get routing.judgeTimeout` |
 | `/router config set <N\|path> <value>` | Set one field (persisted), e.g. `set 4 8000`, `set tiers.fast.models [...]` (JSON values auto-parsed) |
@@ -205,7 +205,7 @@ The original pi plugin delegated through pi-subagents with `agent: "worker"`, `c
 
 - The tool takes `description` + `prompt` (and `run_in_background`); a worker runs in its **own fresh session** — the prompt is its world.
 - By default a worker inherits the parent's model. Shift-Router recognizes that inherited value and replaces it with its catalog-ranked child route; a genuinely explicit child model remains untouched.
-- The child judge walks the configured Fast chain, while execution candidates come from DSH's current provider/model catalog. This removes the standalone orchestrator's hardcoded model table and keeps routing synchronized with deployment changes.
+- The child judge walks the configured Fast chain. Shift-Router reads DSH's complete configurable provider directory for visibility, then limits execution candidates to the active provider/model catalog. This removes the standalone orchestrator's hardcoded model table, reports dormant providers without trying to route through them, and keeps routing synchronized with deployment changes.
 
 The caps are enforced by the router, not just described: every `subagent` tool call while an orchestration turn is active increments `orchestration.rounds`; every failed (`isError`) subagent result increments `orchestration.escalations`; once `capHit()` is true the `subagent` tool is **denied** at `tools/pre-execute` and the orchestrator prompt section is replaced by a "wrap up now" notice. `/router status` shows the live counters (`round x/max, esc y/threshold`).
 
@@ -213,7 +213,7 @@ The caps are enforced by the router, not just described: every `subagent` tool c
 
 ```sh
 npm run build       # tsc (host → dist/) + tsc client + tsdown (client bundle → dist/client.js)
-npm test            # vitest (121 tests: top-level/child routing, catalogs, failover, orchestration, config, GUI)
+npm test            # vitest (122 tests: top-level/child routing, catalogs, failover, orchestration, config, GUI)
 npm run typecheck
 ```
 

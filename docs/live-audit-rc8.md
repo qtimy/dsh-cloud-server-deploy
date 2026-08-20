@@ -19,7 +19,7 @@ The reference instance has more plugins than this minimal repository installs. T
 | Profile dependency | Version/source | Result |
 | --- | --- | --- |
 | `@linxin666/dsh-web-ui-all` | `0.1.12` | Loaded; all 11 discovered client packages served HTTP 200 |
-| `dsh-shift-router` | persistent local link, `0.6.0` | 121 tests; host/client build; catalog, child failover, and Smart orchestration live-tested |
+| `dsh-shift-router` | persistent local link, `0.6.1` | 122 tests; host/client build; 39-provider directory, 6 active providers, 53 active models, child failover, and Smart orchestration live-tested |
 | `dsh-usage-stats` | persistent local link, `0.1.0` | Generated config + client HTTP 200 |
 | `dsh-better-sidebar-skin-yield` | persistent local link, `0.1.0` | Generated config + client HTTP 200 |
 | `dsh-better-sidebar` | `0.12.1` | Client HTTP 200; Sidebar API/file/HTML/WebSocket routes registered |

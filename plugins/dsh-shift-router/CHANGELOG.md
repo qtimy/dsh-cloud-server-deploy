@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-08-20
+
+### Fixed
+
+- Merge RC.8's configurable provider directory with its active adapter registry so `/router catalog` reports every built-in and custom provider, including dormant routes.
+- Mark dormant providers explicitly and exclude them from child-agent routing until DSH registers a live adapter.
+- Preserve the PAYG classification for every user-declared custom provider while retaining subscription priority for the deployment's two plan routes.
+
 ## [0.6.0] - 2026-08-20
 
 ### Added

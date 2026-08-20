@@ -41,7 +41,7 @@ test -f plugins/dsh-shift-router/src/deployment-catalog.ts
 test -f plugins/dsh-shift-router/src/subagent-router.ts
 node -e '
   const p = require("./plugins/dsh-shift-router/package.json");
-  if (p.version !== "0.6.0") throw new Error(`unexpected Shift-Router version ${p.version}`);
+  if (p.version !== "0.6.1") throw new Error(`unexpected Shift-Router version ${p.version}`);
   for (const [name, version] of Object.entries(p.dependencies)) {
     if (name.startsWith("@deepseek-ai/dsh-") && version !== "0.1.0-rc.8") {
       throw new Error(`${name} is not pinned to RC.8: ${version}`)

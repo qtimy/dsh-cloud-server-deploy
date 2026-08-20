@@ -25,6 +25,8 @@ export interface CatalogModel {
 export interface CatalogProvider {
   id: string
   name: string
+  /** True only when DSH currently has a registered adapter for this route. */
+  active: boolean
   /** True when the adapter directory says this route was declared by the user. */
   custom: boolean
   /** Custom providers are always pay-as-you-go, even if their id mimics a subscription route. */
@@ -42,6 +44,13 @@ export interface ProviderInput {
   name?: string
 }
 
+export interface ConfigurableProviderInput {
+  provider: string
+  displayName?: string
+  /** True means the route was user-declared rather than shipped by the adapter. */
+  declared?: boolean
+}
+
 export interface ModelInput {
   provider: string
   id: string
@@ -55,24 +64,41 @@ export const SUBSCRIPTION_PROVIDER_IDS = new Set([
   'qwen-token-plan-cn',
 ])
 
-/** Build a detached snapshot from DSH's live provider/model directory. */
+/**
+ * Build a detached snapshot from both DSH provider surfaces.
+ *
+ * The configurable directory includes every known provider, including dormant
+ * routes. The adapter registry includes only routes that can be requested now.
+ * Directory order is retained and any non-configurable live routes are appended.
+ */
 export function buildDeploymentCatalog(
-  providers: readonly ProviderInput[],
+  activeProviders: readonly ProviderInput[],
+  configurableProviders: readonly ConfigurableProviderInput[],
   modelsByProvider: Readonly<Record<string, readonly ModelInput[]>>,
-  customProviderIds: ReadonlySet<string>,
   checkedAt = Date.now(),
 ): DeploymentCatalog {
+  const activeById = new Map(activeProviders.map((provider) => [provider.id, provider]))
+  const directoryById = new Map(configurableProviders.map((entry) => [entry.provider, entry]))
+  const providerIds = [
+    ...directoryById.keys(),
+    ...activeProviders.map((provider) => provider.id).filter((id) => !directoryById.has(id)),
+  ]
+
   return {
     checkedAt,
-    providers: providers.map((provider) => {
-      const custom = customProviderIds.has(provider.id)
+    providers: providerIds.map((providerId) => {
+      const directory = directoryById.get(providerId)
+      const activeProvider = activeById.get(providerId)
+      const active = activeProvider !== undefined
+      const custom = directory?.declared === true
       return {
-        id: provider.id,
-        name: provider.name ?? provider.id,
+        id: providerId,
+        name: directory?.displayName ?? activeProvider?.name ?? providerId,
+        active,
         custom,
-        billing: !custom && SUBSCRIPTION_PROVIDER_IDS.has(provider.id) ? 'subscription' : 'payg',
-        models: (modelsByProvider[provider.id] ?? []).map((model) => ({
-          provider: provider.id,
+        billing: !custom && SUBSCRIPTION_PROVIDER_IDS.has(providerId) ? 'subscription' : 'payg',
+        models: (active ? modelsByProvider[providerId] ?? [] : []).map((model) => ({
+          provider: providerId,
           id: model.id,
           name: model.name ?? model.id,
           ...(model.inputModalities === undefined ? {} : { inputModalities: model.inputModalities }),
@@ -163,7 +189,7 @@ export function rankChildModels(
 
   const add = (providerId: string, modelId: string, modelName: string, priority: number): void => {
     const provider = byProvider.get(providerId)
-    if (!provider) return
+    if (!provider?.active) return
     const fit = childModelFit(tier, modelId, modelName)
     if (fit >= 10_000) return
     const key = `${providerId}/${modelId}`
@@ -203,11 +229,14 @@ export function rankChildModels(
 export function summarizeCatalog(catalog: DeploymentCatalog): string {
   const lines = catalog.providers.map((provider) => {
     const kind = provider.custom ? 'PAYG custom' : provider.billing === 'subscription' ? 'subscription' : 'PAYG built-in'
-    return `  ${provider.id} [${kind}] - ${provider.models.length} models`
+    const state = provider.active ? 'active' : 'dormant'
+    return `  ${provider.id} [${kind}; ${state}] - ${provider.models.length} models`
   })
+  const activeCount = catalog.providers.filter((provider) => provider.active).length
   return [
-    `Deployment model/provider catalog (checked ${new Date(catalog.checkedAt).toISOString()}):`,
-    ...(lines.length > 0 ? lines : ['  (no registered providers)']),
+    `Deployment model/provider catalog (checked ${new Date(catalog.checkedAt).toISOString()}): ${catalog.providers.length} known, ${activeCount} active`,
+    ...(lines.length > 0 ? lines : ['  (no known providers)']),
+    'Only active providers are eligible for routing; dormant providers are reported for deployment visibility.',
     'Policy: opencode-go and qwen-token-plan-cn are subscription routes; every custom provider is PAYG.',
   ].join('\n')
 }

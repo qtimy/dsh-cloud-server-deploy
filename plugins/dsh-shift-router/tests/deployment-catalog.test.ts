@@ -27,31 +27,48 @@ describe('deployment provider/model catalog', () => {
     ],
   }
 
+  const directory = [
+    { provider: 'opencode-go', displayName: 'OpenCode Go', declared: false },
+    { provider: 'deepseek-official', displayName: 'DeepSeek' },
+    { provider: 'anthropic', displayName: 'Anthropic', declared: false },
+    { provider: 'my-gateway', displayName: 'Private gateway', declared: true },
+  ]
+
   it('classifies every custom provider as PAYG', () => {
-    const catalog = buildDeploymentCatalog(providers, models, new Set(['my-gateway']))
-    expect(catalog.providers.find((p) => p.id === 'opencode-go')).toMatchObject({ billing: 'subscription', custom: false })
-    expect(catalog.providers.find((p) => p.id === 'deepseek-official')).toMatchObject({ billing: 'payg', custom: false })
-    expect(catalog.providers.find((p) => p.id === 'my-gateway')).toMatchObject({ billing: 'payg', custom: true })
-    expect(summarizeCatalog(catalog)).toContain('my-gateway [PAYG custom]')
+    const catalog = buildDeploymentCatalog(providers, directory, models)
+    expect(catalog.providers.find((p) => p.id === 'opencode-go')).toMatchObject({ active: true, billing: 'subscription', custom: false })
+    expect(catalog.providers.find((p) => p.id === 'deepseek-official')).toMatchObject({ active: true, billing: 'payg', custom: false })
+    expect(catalog.providers.find((p) => p.id === 'my-gateway')).toMatchObject({ active: true, billing: 'payg', custom: true })
+    expect(summarizeCatalog(catalog)).toContain('my-gateway [PAYG custom; active]')
   })
 
   it('custom status overrides a subscription-looking provider id', () => {
     const catalog = buildDeploymentCatalog(
       [{ id: 'opencode-go' }],
+      [{ provider: 'opencode-go', declared: true }],
       { 'opencode-go': models['opencode-go'] },
-      new Set(['opencode-go']),
     )
     expect(catalog.providers[0]).toMatchObject({ custom: true, billing: 'payg' })
   })
 
+  it('includes dormant directory providers but never routes to them', () => {
+    const catalog = buildDeploymentCatalog(providers, directory, {
+      ...models,
+      anthropic: [{ provider: 'anthropic', id: 'claude-opus-4', name: 'Claude Opus 4' }],
+    })
+    expect(catalog.providers.find((p) => p.id === 'anthropic')).toMatchObject({ active: false, custom: false, models: [] })
+    expect(summarizeCatalog(catalog)).toContain('anthropic [PAYG built-in; dormant]')
+    expect(rankChildModels('heavy', catalog).some((candidate) => candidate.provider === 'anthropic')).toBe(false)
+  })
+
   it('prefers subscription within the same capability band', () => {
-    const catalog = buildDeploymentCatalog(providers, models, new Set(['my-gateway']))
+    const catalog = buildDeploymentCatalog(providers, directory, models)
     const ranked = rankChildModels('fast', catalog)
     expect(ranked[0]).toMatchObject({ provider: 'opencode-go', model: 'deepseek-v4-flash', billing: 'subscription' })
   })
 
   it('lets capability outrank billing for heavy work and excludes response-only models', () => {
-    const catalog = buildDeploymentCatalog(providers, models, new Set(['my-gateway']))
+    const catalog = buildDeploymentCatalog(providers, directory, models)
     const ranked = rankChildModels('heavy', catalog)
     expect(ranked[0]).toMatchObject({ provider: 'my-gateway', model: 'claude-fable-5', billing: 'payg', custom: true })
     expect(ranked.some((candidate) => candidate.model === 'wan-image')).toBe(false)

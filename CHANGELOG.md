@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1-rc.8 — 2026-08-20
+
+- Update the bundled `dsh-shift-router` to 0.6.1.
+- Read RC.8's full configurable-provider directory as well as its active adapter/model registry: 39 known providers, 6 active providers, 33 dormant providers, and 53 active models on the reference deployment.
+- Report dormant providers without selecting them for child-agent execution; keep every user-declared custom provider classified as PAYG.
+
 ## 0.3.0-rc.8 — 2026-08-20
 
 - Bundle and optionally install `dsh-shift-router` 0.6.0 from a persistent path.
