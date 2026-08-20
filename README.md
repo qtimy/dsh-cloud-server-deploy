@@ -86,7 +86,7 @@ Persistent local plugins must live under a durable path such as `/home/ubuntu/.d
 
 The Web UI `settings.plugin.item` compatibility fix is intentionally limited to the plugin's own generated client file. It does not touch DSH core.
 
-RC.8 otherwise restricts its settings and credential plane to loopback page URLs. With `PUBLIC_SETTINGS_OVER_BASIC_AUTH=true`, the installer adds `dsh-nginx-auth-settings`: it requires an authenticated same-origin marker from Nginx before selecting RC.8's host-backed settings controller. The DSH listener remains loopback-only and the marker does not exist on port 3080.
+RC.8 otherwise restricts its settings and credential plane to loopback page URLs. With `PUBLIC_SETTINGS_OVER_BASIC_AUTH=true`, Nginx injects a small authenticated-edge bootstrap immediately after RC.8's module-loader facade. It marks the connection as trusted before the browser service is published, so the unmodified official settings controller selects host mode. The DSH listener remains loopback-only and direct port 3080 does not serve the bootstrap.
 
 The bundled `dsh-better-sidebar-skin-yield` plugin moves sidebar controls below fake-window skin title bars using a stable CSS-module suffix rather than a generated class hash.
 

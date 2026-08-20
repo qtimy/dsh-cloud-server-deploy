@@ -32,14 +32,20 @@ server {
     client_max_body_size 110m;
 
     # ---- Basic Auth：浏览器加密打开时的登录账号 ----
+    # Local verification may bypass the prompt; every non-loopback client must
+    # still pass Basic Auth.
+    satisfy any;
+    allow 127.0.0.1;
+    allow ::1;
+    deny all;
     auth_basic "DSH Login";
     auth_basic_user_file /etc/nginx/.htpasswd;
 
-    # Static proof consumed by the client-only settings trust plugin. Using a
-    # static content handler (not `return`) ensures Nginx runs Basic Auth first.
-    location = /api/dsh-public-auth {
-        alias ${DEPLOY_DIR}/public-auth.json;
-        default_type application/json;
+    # Loaded only by HTML that passed this server's Basic Auth. It adapts RC.8's
+    # loopback-only browser capability before the connection service is exposed.
+    location = /dsh-public-settings-bootstrap.js {
+        alias ${DEPLOY_DIR}/dsh-public-settings-bootstrap.js;
+        default_type application/javascript;
         add_header Cache-Control "no-store";
     }
 
@@ -81,6 +87,11 @@ server {
     }
 
     location / {
+        # RC.8 starts every browser plugin concurrently. Inject the public-edge
+        # adapter immediately after its loader facade instead of racing a plugin.
+        proxy_set_header Accept-Encoding "";
+        sub_filter_once on;
+        sub_filter '</script>' '</script><script src="/dsh-public-settings-bootstrap.js"></script>';
         proxy_set_header Host 127.0.0.1;
         proxy_set_header Origin http://127.0.0.1;
         # 同上：必须保留 Upgrade/Connection，否则 WebSocket 升级失败

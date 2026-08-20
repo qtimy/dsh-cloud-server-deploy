@@ -44,6 +44,6 @@ Additional observations:
 
 RC.8 intentionally chooses an in-memory settings controller when the browser page URL is not loopback. On the reference public deployment this hid the Models catalog and left plugin configuration empty even though Nginx already enforced Basic Auth.
 
-The follow-up installs `dsh-nginx-auth-settings` as a client-only profile plugin. Its Nginx marker returns 401 without Basic Auth and does not exist on direct port 3080. After the authenticated same-origin marker succeeds, the plugin enables RC.8's existing host-backed controller before the official settings UI is mounted. No DSH package file is changed.
+The follow-up uses an Nginx-injected authenticated-edge bootstrap because RC.8 starts browser plugins concurrently and a Cordis plugin cannot reliably precede the official settings controller. The bootstrap is protected by server-level Basic Auth, does not exist on direct port 3080, and marks the connection trusted before that service is published. No DSH package file is changed.
 
 The existing sidebar/skin helper also referenced a generated CSS-module hash that changed in `dsh-better-sidebar@0.12.1`. Version `0.1.1` now selects the stable `_toggleCluster` suffix. Both plugins served HTTP 200, the generated config had no warnings, and DSH remained stable after activation.

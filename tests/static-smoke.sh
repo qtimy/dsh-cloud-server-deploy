@@ -16,8 +16,7 @@ done < <(find plugins -type f -name package.json -print0)
 while IFS= read -r -d '' client; do
   node --check "${client}"
 done < <(find plugins -type f -name '*.js' -print0)
-node tests/auth-settings-client.mjs
-node tests/auth-settings-host.mjs
+node tests/public-settings-bootstrap.mjs
 
 grep -q 'REPO_DIR="${SCRIPT_DIR}"' install.sh
 grep -q 'DSH_VERSION=0.1.0-rc.8' .env.example
@@ -26,14 +25,14 @@ grep -q 'ExecStart=/bin/bash __DEPLOY_DIR__/dsh-autorestart.sh' \
 grep -q 'Environment=DSH_HOME=/home/__DSH_USER__/.dsh' \
   systemd/dsh-autorestart.service.tpl
 grep -q 'proxy_set_header Authorization "";' nginx/dsh.conf.tpl
-grep -q 'alias ${DEPLOY_DIR}/public-auth.json;' nginx/dsh.conf.tpl
+grep -q 'alias ${DEPLOY_DIR}/dsh-public-settings-bootstrap.js;' nginx/dsh.conf.tpl
+grep -q "sub_filter '</script>'" nginx/dsh.conf.tpl
+grep -q 'allow 127.0.0.1;' nginx/dsh.conf.tpl
 if grep -q 'assets|plugins' nginx/dsh.conf.tpl; then
   echo 'plugin bundles must not receive immutable asset caching' >&2
   exit 1
 fi
-grep -q 'nginx-auth-settings-trust' plugins/dsh-nginx-auth-settings/cordis.patch.yml
-grep -q 'nginxAuthSettingsReady' plugins/dsh-nginx-auth-settings/cordis.patch.yml
-! grep -q 'disabled: true' plugins/dsh-nginx-auth-settings/cordis.patch.yml
+test ! -d plugins/dsh-nginx-auth-settings
 grep -q '\[class\*="_toggleCluster"\]' \
   plugins/dsh-better-sidebar-skin-yield/lib/client.js
 

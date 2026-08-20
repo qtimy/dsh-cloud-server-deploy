@@ -185,8 +185,11 @@ if [[ -n "${WEB_UI_ALL_VERSION}" ]]; then
 else
   echo "WEB_UI_ALL_VERSION is empty; keeping an official-core-only profile"
 fi
-if [[ "${PUBLIC_SETTINGS_OVER_BASIC_AUTH}" == true ]]; then
-  install_bundled_plugin dsh-nginx-auth-settings
+if node -e '
+  const manifest = require(process.argv[1]);
+  process.exit(Object.hasOwn(manifest.dependencies ?? {}, "dsh-nginx-auth-settings") ? 0 : 1);
+' "${PROFILE_DIR}/package.json"; then
+  sudo -u "${DSH_USER}" -H dsh plugin --profile web remove dsh-nginx-auth-settings
 fi
 
 echo "===== 5/8 deployment helpers and environment ====="
@@ -196,8 +199,14 @@ DSH_USER=${DSH_USER}
 DSH_PORT=${DSH_PORT}
 TRUSTED_HOST=${TRUSTED_HOST}
 EOF
-printf '{"authenticated":true}\n' > "${DEPLOY_DIR}/public-auth.json"
-chmod 0644 "${DEPLOY_DIR}/public-auth.json"
+if [[ "${PUBLIC_SETTINGS_OVER_BASIC_AUTH}" == true ]]; then
+  install -m 0644 "${REPO_DIR}/nginx/dsh-public-settings-bootstrap.js" \
+    "${DEPLOY_DIR}/dsh-public-settings-bootstrap.js"
+else
+  printf '/* authenticated public settings disabled */\n' \
+    > "${DEPLOY_DIR}/dsh-public-settings-bootstrap.js"
+  chmod 0644 "${DEPLOY_DIR}/dsh-public-settings-bootstrap.js"
+fi
 install -m 0755 "${REPO_DIR}/scripts/update.sh" "${DEPLOY_DIR}/update.sh"
 install -m 0755 "${REPO_DIR}/scripts/verify.sh" "${DEPLOY_DIR}/verify.sh"
 install -m 0755 "${REPO_DIR}/scripts/dsh-autorestart.sh" "${DEPLOY_DIR}/dsh-autorestart.sh"

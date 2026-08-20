@@ -84,10 +84,12 @@ if node -e '
   const manifest = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
   process.exit(Object.hasOwn(manifest.dependencies ?? {}, "dsh-nginx-auth-settings") ? 0 : 1);
 ' "${PROFILE}/package.json"; then
-  grep -q 'id: nginx-auth-settings-trust' "${config_file}"
-  grep -q 'nginxAuthSettingsReady' "${config_file}"
-  echo "[verify] authenticated-edge settings composition is active"
+  echo "ERROR: obsolete dsh-nginx-auth-settings profile plugin is still installed." >&2
+  exit 1
 fi
+[[ -s "${DEPLOY_DIR}/dsh-public-settings-bootstrap.js" ]]
+grep -q 'dsh-public-settings-bootstrap.js' /etc/nginx/sites-available/dsh
+echo "[verify] authenticated-edge settings bootstrap is installed"
 
 if [[ "${DSH_VERIFY_RUNTIME}" == 0 ]]; then
   echo "[verify] offline checks complete"
@@ -105,6 +107,18 @@ done
 systemctl is-active --quiet dsh-web
 systemctl is-active --quiet nginx
 curl -fsS -o /dev/null "http://127.0.0.1:${DSH_PORT}/"
+edge_html="$(curl -kfsS https://127.0.0.1/)"
+grep -q '<script src="/dsh-public-settings-bootstrap.js"></script>' <<< "${edge_html}"
+[[ "$(curl -ksS -o /dev/null -w '%{http_code}' \
+  https://127.0.0.1/dsh-public-settings-bootstrap.js)" == 200 ]]
+edge_bootstrap_type="$(curl -ksSI https://127.0.0.1/dsh-public-settings-bootstrap.js | \
+  sed -n 's/^[Cc]ontent-[Tt]ype: *//p' | tr -d '\r')"
+direct_bootstrap_type="$(curl -sSI \
+  "http://127.0.0.1:${DSH_PORT}/dsh-public-settings-bootstrap.js" | \
+  sed -n 's/^[Cc]ontent-[Tt]ype: *//p' | tr -d '\r')"
+[[ "${edge_bootstrap_type}" == application/javascript* ]]
+[[ "${direct_bootstrap_type}" == text/html* ]]
+echo "[verify] authenticated edge injects bootstrap; direct upstream does not"
 
 pid_before="$(systemctl show -p MainPID --value dsh-web)"
 sleep 10
