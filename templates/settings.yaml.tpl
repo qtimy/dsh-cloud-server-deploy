@@ -21,5 +21,7 @@
 #   provider: my-provider
 #   model: my-model-id
 
-# ---- 默认留空，等待用户自行配置 ----
-{}
+# remote-web-ui 会随可选 web-ui aggregate 安装。公网 Nginx Basic Auth 部署中
+# 默认关闭，避免未配对心跳与浏览器 Basic Auth 产生重复登录循环。
+remote-web-ui:
+  enabled: false
