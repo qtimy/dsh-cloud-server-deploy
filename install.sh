@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Clean-core DSH cloud installer. Run from the repository root with sudo.
+# Official-core DSH HTTPS installer. Run from the repository root with sudo.
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -24,11 +24,9 @@ source "${ENV_FILE}"
 set +a
 
 DSH_VERSION="${DSH_VERSION:-}"
-WEB_UI_ALL_VERSION="${WEB_UI_ALL_VERSION:-}"
-SHIFT_ROUTER_ENABLED="${SHIFT_ROUTER_ENABLED:-true}"
 PUBLIC_SETTINGS_OVER_BASIC_AUTH="${PUBLIC_SETTINGS_OVER_BASIC_AUTH:-true}"
 DSH_PORT="${DSH_PORT:-3080}"
-DSH_USER="${DSH_USER:-ubuntu}"
+DSH_USER="${DSH_USER:-dsh}"
 DEPLOY_DIR="${DEPLOY_DIR:-/opt/dsh-deploy}"
 TRUSTED_HOST="${TRUSTED_HOST:-}"
 BASIC_AUTH_USER="${BASIC_AUTH_USER:-dsh}"
@@ -41,16 +39,8 @@ if [[ ! "${DSH_VERSION}" =~ ${exact_version_re} ]]; then
   echo "ERROR: DSH_VERSION must be an exact version (for example 0.1.0-rc.8)." >&2
   exit 2
 fi
-if [[ -n "${WEB_UI_ALL_VERSION}" && ! "${WEB_UI_ALL_VERSION}" =~ ${exact_version_re} ]]; then
-  echo "ERROR: WEB_UI_ALL_VERSION must be empty or an exact version." >&2
-  exit 2
-fi
 if [[ "${PUBLIC_SETTINGS_OVER_BASIC_AUTH}" != true && "${PUBLIC_SETTINGS_OVER_BASIC_AUTH}" != false ]]; then
   echo "ERROR: PUBLIC_SETTINGS_OVER_BASIC_AUTH must be true or false." >&2
-  exit 2
-fi
-if [[ "${SHIFT_ROUTER_ENABLED}" != true && "${SHIFT_ROUTER_ENABLED}" != false ]]; then
-  echo "ERROR: SHIFT_ROUTER_ENABLED must be true or false." >&2
   exit 2
 fi
 if [[ -z "${TRUSTED_HOST}" || "${TRUSTED_HOST}" == "your-server-ip-or-domain" ]]; then
@@ -78,7 +68,7 @@ if [[ ! "${DSH_USER}" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
   exit 2
 fi
 
-echo "===== 1/8 system dependencies ====="
+echo "===== 1/7 system dependencies ====="
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y ca-certificates curl gnupg nginx openssl apache2-utils gettext-base util-linux >/dev/null
@@ -95,7 +85,7 @@ if ! command -v pnpm >/dev/null 2>&1; then
   npm install -g pnpm
 fi
 
-echo "===== 2/8 official DSH core ${DSH_VERSION} ====="
+echo "===== 2/7 official DSH core ${DSH_VERSION} ====="
 npm view "@deepseek-ai/dsh@${DSH_VERSION}" version >/dev/null
 systemctl stop dsh-autorestart dsh-web 2>/dev/null || true
 npm install -g "@deepseek-ai/dsh@${DSH_VERSION}"
@@ -104,7 +94,7 @@ if [[ "$(dsh --version)" != "${DSH_VERSION}" ]]; then
   exit 1
 fi
 
-echo "===== 3/8 user and clean web profile ====="
+echo "===== 3/7 user and official web profile ====="
 if ! id "${DSH_USER}" >/dev/null 2>&1; then
   useradd --create-home --shell /bin/bash "${DSH_USER}"
 fi
@@ -152,89 +142,12 @@ fi
 chown -R "${DSH_USER}:${DSH_USER}" "${PROFILE_DIR}"
 sudo -u "${DSH_USER}" -H bash -c "cd '${PROFILE_DIR}' && pnpm install --frozen-lockfile=false"
 
-echo "===== 4/8 optional profile plugins ====="
-install_bundled_plugin() {
-  local plugin_name=$1
-  local source_dir="${REPO_DIR}/plugins/${plugin_name}"
-  local target_dir="${DSH_HOME_TARGET}/plugins/${plugin_name}"
-  install -d -o "${DSH_USER}" -g "${DSH_USER}" -m 0755 "${target_dir}/lib"
-  install -o "${DSH_USER}" -g "${DSH_USER}" -m 0644 \
-    "${source_dir}/package.json" "${target_dir}/package.json"
-  install -o "${DSH_USER}" -g "${DSH_USER}" -m 0644 \
-    "${source_dir}/cordis.patch.yml" "${target_dir}/cordis.patch.yml"
-  install -o "${DSH_USER}" -g "${DSH_USER}" -m 0644 \
-    "${source_dir}/README.md" "${target_dir}/README.md"
-  install -o "${DSH_USER}" -g "${DSH_USER}" -m 0644 \
-    "${source_dir}/lib/index.js" "${target_dir}/lib/index.js"
-  install -o "${DSH_USER}" -g "${DSH_USER}" -m 0644 \
-    "${source_dir}/lib/client.js" "${target_dir}/lib/client.js"
-  sudo -u "${DSH_USER}" -H dsh plugin --profile web add "${target_dir}"
-}
-
-install_bundled_source_plugin() {
-  local plugin_name=$1
-  local source_dir="${REPO_DIR}/plugins/${plugin_name}"
-  local target_dir="${DSH_HOME_TARGET}/plugins/${plugin_name}"
-  install -d -o "${DSH_USER}" -g "${DSH_USER}" -m 0755 "${target_dir}"
-  tar -C "${source_dir}" -cf - . | tar -C "${target_dir}" -xf -
-  chown -R "${DSH_USER}:${DSH_USER}" "${target_dir}"
-  sudo -u "${DSH_USER}" -H bash -c \
-    "cd '${target_dir}' && npm ci --ignore-scripts && npm run build"
-  sudo -u "${DSH_USER}" -H dsh plugin --profile web add "${target_dir}"
-}
-
-if [[ -n "${WEB_UI_ALL_VERSION}" ]]; then
-  installed_web_ui="$(node -e '
-    try {
-      const p = require(process.argv[1]);
-      process.stdout.write(p.version || "");
-    } catch {}
-  ' "${PROFILE_DIR}/node_modules/@linxin666/dsh-web-ui-all/package.json")"
-  if [[ "${installed_web_ui}" != "${WEB_UI_ALL_VERSION}" ]]; then
-    sudo -u "${DSH_USER}" -H dsh plugin --profile web add \
-      "@linxin666/dsh-web-ui-all@${WEB_UI_ALL_VERSION}"
-  else
-    echo "@linxin666/dsh-web-ui-all@${WEB_UI_ALL_VERSION} already installed"
-  fi
-  sudo -u "${DSH_USER}" -H env DSH_HOME="${DSH_HOME_TARGET}" \
-    bash "${REPO_DIR}/scripts/patch-plugins-key.sh"
-  install_bundled_plugin dsh-better-sidebar-skin-yield
-else
-  echo "WEB_UI_ALL_VERSION is empty; keeping an official-core-only profile"
-fi
-if [[ "${SHIFT_ROUTER_ENABLED}" == true ]]; then
-  install_bundled_source_plugin dsh-shift-router
-  sudo -u "${DSH_USER}" -H node \
-    "${DSH_HOME_TARGET}/plugins/dsh-shift-router/scripts/expose-gui-settings.mjs" \
-    --profile web --home "${DSH_HOME_TARGET}"
-else
-  if node -e '
-    const manifest = require(process.argv[1]);
-    process.exit(Object.hasOwn(manifest.dependencies ?? {}, "dsh-shift-router") ? 0 : 1);
-  ' "${PROFILE_DIR}/package.json"; then
-    sudo -u "${DSH_USER}" -H dsh plugin --profile web remove dsh-shift-router
-  fi
-fi
-if node -e '
-  const manifest = require(process.argv[1]);
-  process.exit(Object.hasOwn(manifest.dependencies ?? {}, "dsh-agent-orchestrator") ? 0 : 1);
-' "${PROFILE_DIR}/package.json"; then
-  sudo -u "${DSH_USER}" -H dsh plugin --profile web remove dsh-agent-orchestrator
-fi
-if node -e '
-  const manifest = require(process.argv[1]);
-  process.exit(Object.hasOwn(manifest.dependencies ?? {}, "dsh-nginx-auth-settings") ? 0 : 1);
-' "${PROFILE_DIR}/package.json"; then
-  sudo -u "${DSH_USER}" -H dsh plugin --profile web remove dsh-nginx-auth-settings
-fi
-
-echo "===== 5/8 deployment helpers and environment ====="
+echo "===== 4/7 deployment helpers and environment ====="
 mkdir -p "${DEPLOY_DIR}" /etc
 cat > "${DEPLOY_DIR}/deploy.env" <<EOF
 DSH_USER=${DSH_USER}
 DSH_PORT=${DSH_PORT}
 TRUSTED_HOST=${TRUSTED_HOST}
-SHIFT_ROUTER_ENABLED=${SHIFT_ROUTER_ENABLED}
 EOF
 if [[ "${PUBLIC_SETTINGS_OVER_BASIC_AUTH}" == true ]]; then
   install -m 0644 "${REPO_DIR}/nginx/dsh-public-settings-bootstrap.js" \
@@ -246,14 +159,12 @@ else
 fi
 install -m 0755 "${REPO_DIR}/scripts/update.sh" "${DEPLOY_DIR}/update.sh"
 install -m 0755 "${REPO_DIR}/scripts/verify.sh" "${DEPLOY_DIR}/verify.sh"
-install -m 0755 "${REPO_DIR}/scripts/dsh-autorestart.sh" "${DEPLOY_DIR}/dsh-autorestart.sh"
-install -m 0755 "${REPO_DIR}/scripts/patch-plugins-key.sh" "${DEPLOY_DIR}/patch-plugins-key.sh"
 cat > /etc/dsh-web.env <<EOF
 TRUSTED_HOST=${TRUSTED_HOST}
 EOF
 chmod 0600 /etc/dsh-web.env "${DEPLOY_DIR}/deploy.env"
 
-echo "===== 6/8 Nginx TLS and Basic Auth ====="
+echo "===== 5/7 Nginx TLS and Basic Auth ====="
 mkdir -p /etc/nginx/certs
 if [[ -f "${DEPLOY_DIR}/tls.env" ]]; then
   # Persisted by setup-letsencrypt.sh so an installer rerun keeps the trusted certificate.
@@ -289,19 +200,17 @@ nginx -t
 systemctl enable nginx >/dev/null
 systemctl restart nginx
 
-echo "===== 7/8 systemd services ====="
+echo "===== 6/7 systemd service ====="
 sed -e "s|__DSH_USER__|${DSH_USER}|g" \
     -e "s|__DSH_PORT__|${DSH_PORT}|g" \
     "${REPO_DIR}/systemd/dsh-web.service.tpl" > /etc/systemd/system/dsh-web.service
-sed -e "s|__DSH_USER__|${DSH_USER}|g" \
-    -e "s|__DEPLOY_DIR__|${DEPLOY_DIR}|g" \
-    "${REPO_DIR}/systemd/dsh-autorestart.service.tpl" > /etc/systemd/system/dsh-autorestart.service
 systemctl daemon-reload
-systemctl enable dsh-web dsh-autorestart >/dev/null
+systemctl disable --now dsh-autorestart 2>/dev/null || true
+rm -f /etc/systemd/system/dsh-autorestart.service
+systemctl enable dsh-web >/dev/null
 systemctl restart dsh-web
-systemctl restart dsh-autorestart
 
-echo "===== 8/8 deployment verification ====="
+echo "===== 7/7 deployment verification ====="
 "${DEPLOY_DIR}/verify.sh" "${DSH_VERSION}"
 
 echo
