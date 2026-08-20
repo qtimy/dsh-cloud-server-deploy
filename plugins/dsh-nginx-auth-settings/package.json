@@ -1,6 +1,6 @@
 {
   "name": "dsh-nginx-auth-settings",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Allows the RC.8 browser settings plane only after a same-origin Nginx Basic Auth marker succeeds.",
   "license": "MIT",
   "type": "module",
@@ -26,8 +26,7 @@
     },
     "client": {
       "inject": [
-        "@deepseek-ai/dsh-client-connection",
-        "@deepseek-ai/dsh-client-ui-settings"
+        "@deepseek-ai/dsh-client-connection"
       ],
       "platform": "web"
     }

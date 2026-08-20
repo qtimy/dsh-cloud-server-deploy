@@ -17,6 +17,7 @@ while IFS= read -r -d '' client; do
   node --check "${client}"
 done < <(find plugins -type f -name '*.js' -print0)
 node tests/auth-settings-client.mjs
+node tests/auth-settings-host.mjs
 
 grep -q 'REPO_DIR="${SCRIPT_DIR}"' install.sh
 grep -q 'DSH_VERSION=0.1.0-rc.8' .env.example
@@ -30,8 +31,9 @@ if grep -q 'assets|plugins' nginx/dsh.conf.tpl; then
   echo 'plugin bundles must not receive immutable asset caching' >&2
   exit 1
 fi
-grep -q 'ui-settings-nginx-auth' plugins/dsh-nginx-auth-settings/cordis.patch.yml
-! grep -q 'nginx-auth-settings-trust' plugins/dsh-nginx-auth-settings/cordis.patch.yml
+grep -q 'nginx-auth-settings-trust' plugins/dsh-nginx-auth-settings/cordis.patch.yml
+grep -q 'nginxAuthSettingsReady' plugins/dsh-nginx-auth-settings/cordis.patch.yml
+! grep -q 'disabled: true' plugins/dsh-nginx-auth-settings/cordis.patch.yml
 grep -q '\[class\*="_toggleCluster"\]' \
   plugins/dsh-better-sidebar-skin-yield/lib/client.js
 

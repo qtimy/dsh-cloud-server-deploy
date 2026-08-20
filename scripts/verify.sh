@@ -84,7 +84,8 @@ if node -e '
   const manifest = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
   process.exit(Object.hasOwn(manifest.dependencies ?? {}, "dsh-nginx-auth-settings") ? 0 : 1);
 ' "${PROFILE}/package.json"; then
-  grep -q 'id: ui-settings-nginx-auth' "${config_file}"
+  grep -q 'id: nginx-auth-settings-trust' "${config_file}"
+  grep -q 'nginxAuthSettingsReady' "${config_file}"
   echo "[verify] authenticated-edge settings composition is active"
 fi
 

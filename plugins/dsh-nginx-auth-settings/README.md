@@ -9,7 +9,9 @@ only after server-level Basic Auth succeeds. It then enables RC.8's existing
 host-backed settings controller. Direct access to DSH on port 3080 has no marker
 route and cannot activate the capability.
 
-The bundle patch replaces the original settings row with a small wrapper. The
-wrapper waits for the marker, updates RC.8's capability bit, and only then calls
-the unmodified official `dsh-client-ui-settings` client. This ordering matters
+The bundle patch adds a service dependency to the enabled, unmodified official
+`dsh-client-ui-settings` row. The trust plugin waits for the marker, updates
+RC.8's capability bit, and then provides that service. This ordering matters
 because RC.8 selects its settings mirror mode once during initialization.
+The plugin's no-op host half also provides the gate so the shared Cordis entry
+tree completes host activation; the trust decision remains browser-only.

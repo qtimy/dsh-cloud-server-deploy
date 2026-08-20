@@ -1,10 +1,10 @@
 # RC.8 chooses the settings mirror mode once when its client plugin starts.
-# Replace the early row with a wrapper that authenticates first and then calls
-# the unmodified official settings client.
+# Add a service gate to the original row, keeping its module enabled and clean.
 - id: ui-settings
   name: '@deepseek-ai/dsh-client-ui-settings'
-  disabled: true
+  inject:
+    - nginxAuthSettingsReady
 
 - insert:
-    - id: ui-settings-nginx-auth
+    - id: nginx-auth-settings-trust
       name: dsh-nginx-auth-settings

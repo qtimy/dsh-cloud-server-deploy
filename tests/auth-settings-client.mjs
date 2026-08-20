@@ -6,39 +6,31 @@ globalThis.window = {
   },
 }
 globalThis.location = { protocol: 'https:' }
+globalThis.AbortSignal = { timeout: () => ({}) }
 globalThis.fetch = async () => ({
   ok: true,
   json: async () => ({ authenticated: true }),
 })
 
 await import('../plugins/dsh-nginx-auth-settings/lib/client.js')
-let officialApplyCalls = 0
 const plugin = globalThis.__pluginDefinition.factory((id) => {
-  if (id !== '@deepseek-ai/dsh-client-ui-settings') {
-    throw new Error(`unexpected client dependency: ${id}`)
-  }
-  return {
-    inject: ['connection', 'remote'],
-    apply(ctx) {
-      officialApplyCalls += 1
-      const connection = ctx.get('connection')
-      if (!connection.isLoopback) {
-        throw new Error('official settings client started before authenticated trust')
-      }
-    },
-  }
+  throw new Error(`trust plugin must not import another client module: ${id}`)
 })
 const connection = { isLoopback: false }
+const provided = new Map()
 await plugin.apply({
   get(name) {
     return name === 'connection' ? connection : undefined
+  },
+  provide(name, value) {
+    provided.set(name, value)
   },
 })
 
 if (!connection.isLoopback) {
   throw new Error('authenticated edge did not enable the host settings controller')
 }
-if (officialApplyCalls !== 1) {
-  throw new Error(`official settings client apply count was ${officialApplyCalls}`)
+if (provided.get('nginxAuthSettingsReady')?.authenticated !== true) {
+  throw new Error('settings readiness gate was not provided after authentication')
 }
 console.log('authenticated settings client simulation passed')
