@@ -3,6 +3,7 @@
 ## 0.2.1-rc.8 — 2026-08-20
 
 - Restore Models and plugin configuration for authenticated public browsers with a client-only Nginx trust plugin.
+- Start the unmodified RC.8 settings controller only after the authenticated edge check completes, avoiding a browser startup race that left it in memory-only mode.
 - Keep RC.8 core clean and preserve the loopback-only restriction on direct port 3080.
 - Fix the sidebar/skin title-bar layout helper by replacing its stale generated CSS class with a hash-independent selector.
 - Stop assigning immutable one-year caching to stable plugin bundle URLs.

@@ -9,5 +9,7 @@ only after server-level Basic Auth succeeds. It then enables RC.8's existing
 host-backed settings controller. Direct access to DSH on port 3080 has no marker
 route and cannot activate the capability.
 
-The bundle patch remounts the official `dsh-client-ui-settings` row after the
-marker check so model and plugin settings consumers initialize in host mode.
+The bundle patch replaces the original settings row with a small wrapper. The
+wrapper waits for the marker, updates RC.8's capability bit, and only then calls
+the unmodified official `dsh-client-ui-settings` client. This ordering matters
+because RC.8 selects its settings mirror mode once during initialization.

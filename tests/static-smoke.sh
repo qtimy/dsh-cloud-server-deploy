@@ -31,6 +31,7 @@ if grep -q 'assets|plugins' nginx/dsh.conf.tpl; then
   exit 1
 fi
 grep -q 'ui-settings-nginx-auth' plugins/dsh-nginx-auth-settings/cordis.patch.yml
+! grep -q 'nginx-auth-settings-trust' plugins/dsh-nginx-auth-settings/cordis.patch.yml
 grep -q '\[class\*="_toggleCluster"\]' \
   plugins/dsh-better-sidebar-skin-yield/lib/client.js
 
