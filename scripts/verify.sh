@@ -24,6 +24,7 @@ DSH_HOME_TARGET="/home/${DSH_USER}/.dsh"
 PROFILE="${DSH_HOME_TARGET}/profiles/web"
 EXPECTED_VERSION="${1:-$(dsh --version)}"
 DSH_VERIFY_RUNTIME="${DSH_VERIFY_RUNTIME:-1}"
+SHIFT_ROUTER_ENABLED="${SHIFT_ROUTER_ENABLED:-false}"
 
 echo "[verify] DSH core ${EXPECTED_VERSION}"
 [[ "$(dsh --version)" == "${EXPECTED_VERSION}" ]]
@@ -86,6 +87,20 @@ if node -e '
 ' "${PROFILE}/package.json"; then
   echo "ERROR: obsolete dsh-nginx-auth-settings profile plugin is still installed." >&2
   exit 1
+fi
+if node -e '
+  const manifest = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
+  process.exit(Object.hasOwn(manifest.dependencies ?? {}, "dsh-agent-orchestrator") ? 0 : 1);
+' "${PROFILE}/package.json"; then
+  echo "ERROR: standalone dsh-agent-orchestrator is still installed; Shift-Router owns orchestration." >&2
+  exit 1
+fi
+if [[ "${SHIFT_ROUTER_ENABLED}" == true ]]; then
+  shift_target="$(readlink -f "${PROFILE}/node_modules/dsh-shift-router")"
+  [[ "${shift_target}" == "${DSH_HOME_TARGET}/plugins/dsh-shift-router" ]]
+  [[ "$(node -p "require('${shift_target}/package.json').version")" == 0.6.0 ]]
+  [[ -s "${shift_target}/dist/index.js" && -s "${shift_target}/dist/client.js" ]]
+  echo "[verify] Shift-Router 0.6.0 persistent link and bundles are valid"
 fi
 [[ -s "${DEPLOY_DIR}/dsh-public-settings-bootstrap.js" ]]
 grep -q 'dsh-public-settings-bootstrap.js' /etc/nginx/sites-available/dsh

@@ -20,6 +20,7 @@ node tests/public-settings-bootstrap.mjs
 
 grep -q 'REPO_DIR="${SCRIPT_DIR}"' install.sh
 grep -q 'DSH_VERSION=0.1.0-rc.8' .env.example
+grep -q 'SHIFT_ROUTER_ENABLED=true' .env.example
 grep -q 'ExecStart=/bin/bash __DEPLOY_DIR__/dsh-autorestart.sh' \
   systemd/dsh-autorestart.service.tpl
 grep -q 'Environment=DSH_HOME=/home/__DSH_USER__/.dsh' \
@@ -32,7 +33,22 @@ if grep -q 'assets|plugins' nginx/dsh.conf.tpl; then
   echo 'plugin bundles must not receive immutable asset caching' >&2
   exit 1
 fi
-test ! -d plugins/dsh-nginx-auth-settings
+if git ls-files --error-unmatch plugins/dsh-nginx-auth-settings/package.json >/dev/null 2>&1; then
+  echo 'obsolete dsh-nginx-auth-settings must not be committed' >&2
+  exit 1
+fi
+test -f plugins/dsh-shift-router/src/deployment-catalog.ts
+test -f plugins/dsh-shift-router/src/subagent-router.ts
+node -e '
+  const p = require("./plugins/dsh-shift-router/package.json");
+  if (p.version !== "0.6.0") throw new Error(`unexpected Shift-Router version ${p.version}`);
+  for (const [name, version] of Object.entries(p.dependencies)) {
+    if (name.startsWith("@deepseek-ai/dsh-") && version !== "0.1.0-rc.8") {
+      throw new Error(`${name} is not pinned to RC.8: ${version}`)
+    }
+  }
+'
+grep -q 'dsh-agent-orchestrator' scripts/verify.sh
 grep -q '\[class\*="_toggleCluster"\]' \
   plugins/dsh-better-sidebar-skin-yield/lib/client.js
 

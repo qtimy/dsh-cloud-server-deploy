@@ -19,7 +19,7 @@ The reference instance has more plugins than this minimal repository installs. T
 | Profile dependency | Version/source | Result |
 | --- | --- | --- |
 | `@linxin666/dsh-web-ui-all` | `0.1.12` | Loaded; all 11 discovered client packages served HTTP 200 |
-| `dsh-agent-orchestrator` | persistent local link, `0.1.0` | Present in generated config |
+| `dsh-shift-router` | persistent local link, `0.6.0` | 121 tests; host/client build; catalog, child failover, and Smart orchestration live-tested |
 | `dsh-usage-stats` | persistent local link, `0.1.0` | Generated config + client HTTP 200 |
 | `dsh-better-sidebar-skin-yield` | persistent local link, `0.1.0` | Generated config + client HTTP 200 |
 | `dsh-better-sidebar` | `0.12.1` | Client HTTP 200; Sidebar API/file/HTML/WebSocket routes registered |
@@ -37,6 +37,8 @@ Additional observations:
 
 - Only `dsh-base` and `dsh-web-app` belong in the core profile template.
 - Optional packages are installed through `dsh plugin` and remain removable dependencies.
+- The standalone `dsh-agent-orchestrator` is removed; Shift-Router owns both
+  CTO orchestration and deployment-aware worker routing.
 - Compatibility edits may target plugin-owned files, but never the global DSH installation.
 - The deployment verifier treats volatile links, mixed core versions, config warnings, missing client bundles, restarts, and known boot errors as failures.
 

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.0-rc.8 — 2026-08-20
+
+- Bundle and optionally install `dsh-shift-router` 0.6.0 from a persistent path.
+- Integrate six-class subagent/workflow routing with the existing Fast/Smart
+  router and Smart CTO orchestration.
+- Discover the live DSH provider/model catalog and expose it through
+  `/router catalog`; custom providers are always classified as PAYG.
+- Add finite cross-provider child failover. Provider quota/auth/config errors
+  quarantine the provider; transient errors quarantine only the failed model.
+- Remove the redundant standalone `dsh-agent-orchestrator` profile dependency.
+- Verify the Shift-Router version, persistent link, host/client bundles, and
+  absence of the standalone orchestrator.
+- Live EC2 validation: Smart parent on `deepseek-official/deepseek-v4-pro`;
+  custom-PAYG child failover `ali/deepseek-v4-pro-0813` →
+  `ccsub/claude-opus-5`; orchestration and child result completed.
+
 ## 0.2.1-rc.8 — 2026-08-20
 
 - Restore Models and plugin configuration with an Nginx-injected authenticated-edge bootstrap that runs before RC.8 publishes its browser connection service.

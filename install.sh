@@ -25,6 +25,7 @@ set +a
 
 DSH_VERSION="${DSH_VERSION:-}"
 WEB_UI_ALL_VERSION="${WEB_UI_ALL_VERSION:-}"
+SHIFT_ROUTER_ENABLED="${SHIFT_ROUTER_ENABLED:-true}"
 PUBLIC_SETTINGS_OVER_BASIC_AUTH="${PUBLIC_SETTINGS_OVER_BASIC_AUTH:-true}"
 DSH_PORT="${DSH_PORT:-3080}"
 DSH_USER="${DSH_USER:-ubuntu}"
@@ -46,6 +47,10 @@ if [[ -n "${WEB_UI_ALL_VERSION}" && ! "${WEB_UI_ALL_VERSION}" =~ ${exact_version
 fi
 if [[ "${PUBLIC_SETTINGS_OVER_BASIC_AUTH}" != true && "${PUBLIC_SETTINGS_OVER_BASIC_AUTH}" != false ]]; then
   echo "ERROR: PUBLIC_SETTINGS_OVER_BASIC_AUTH must be true or false." >&2
+  exit 2
+fi
+if [[ "${SHIFT_ROUTER_ENABLED}" != true && "${SHIFT_ROUTER_ENABLED}" != false ]]; then
+  echo "ERROR: SHIFT_ROUTER_ENABLED must be true or false." >&2
   exit 2
 fi
 if [[ -z "${TRUSTED_HOST}" || "${TRUSTED_HOST}" == "your-server-ip-or-domain" ]]; then
@@ -166,6 +171,18 @@ install_bundled_plugin() {
   sudo -u "${DSH_USER}" -H dsh plugin --profile web add "${target_dir}"
 }
 
+install_bundled_source_plugin() {
+  local plugin_name=$1
+  local source_dir="${REPO_DIR}/plugins/${plugin_name}"
+  local target_dir="${DSH_HOME_TARGET}/plugins/${plugin_name}"
+  install -d -o "${DSH_USER}" -g "${DSH_USER}" -m 0755 "${target_dir}"
+  tar -C "${source_dir}" -cf - . | tar -C "${target_dir}" -xf -
+  chown -R "${DSH_USER}:${DSH_USER}" "${target_dir}"
+  sudo -u "${DSH_USER}" -H bash -c \
+    "cd '${target_dir}' && npm ci --ignore-scripts && npm run build"
+  sudo -u "${DSH_USER}" -H dsh plugin --profile web add "${target_dir}"
+}
+
 if [[ -n "${WEB_UI_ALL_VERSION}" ]]; then
   installed_web_ui="$(node -e '
     try {
@@ -185,6 +202,25 @@ if [[ -n "${WEB_UI_ALL_VERSION}" ]]; then
 else
   echo "WEB_UI_ALL_VERSION is empty; keeping an official-core-only profile"
 fi
+if [[ "${SHIFT_ROUTER_ENABLED}" == true ]]; then
+  install_bundled_source_plugin dsh-shift-router
+  sudo -u "${DSH_USER}" -H node \
+    "${DSH_HOME_TARGET}/plugins/dsh-shift-router/scripts/expose-gui-settings.mjs" \
+    --profile web --home "${DSH_HOME_TARGET}"
+else
+  if node -e '
+    const manifest = require(process.argv[1]);
+    process.exit(Object.hasOwn(manifest.dependencies ?? {}, "dsh-shift-router") ? 0 : 1);
+  ' "${PROFILE_DIR}/package.json"; then
+    sudo -u "${DSH_USER}" -H dsh plugin --profile web remove dsh-shift-router
+  fi
+fi
+if node -e '
+  const manifest = require(process.argv[1]);
+  process.exit(Object.hasOwn(manifest.dependencies ?? {}, "dsh-agent-orchestrator") ? 0 : 1);
+' "${PROFILE_DIR}/package.json"; then
+  sudo -u "${DSH_USER}" -H dsh plugin --profile web remove dsh-agent-orchestrator
+fi
 if node -e '
   const manifest = require(process.argv[1]);
   process.exit(Object.hasOwn(manifest.dependencies ?? {}, "dsh-nginx-auth-settings") ? 0 : 1);
@@ -198,6 +234,7 @@ cat > "${DEPLOY_DIR}/deploy.env" <<EOF
 DSH_USER=${DSH_USER}
 DSH_PORT=${DSH_PORT}
 TRUSTED_HOST=${TRUSTED_HOST}
+SHIFT_ROUTER_ENABLED=${SHIFT_ROUTER_ENABLED}
 EOF
 if [[ "${PUBLIC_SETTINGS_OVER_BASIC_AUTH}" == true ]]; then
   install -m 0644 "${REPO_DIR}/nginx/dsh-public-settings-bootstrap.js" \

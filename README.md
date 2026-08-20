@@ -21,7 +21,7 @@ Nginx :443
 Official DSH web profile :3080
    ├── @deepseek-ai/dsh-base       (core)
    ├── @deepseek-ai/dsh-web-app    (core)
-   └── profile packages            (plugins)
+   └── profile packages            (plugins, including optional Shift-Router)
 ```
 
 `@linxin666/dsh-web-ui-all` is enabled by default in `.env.example`, but it is installed through the official plugin command and remains a removable profile dependency. Set `WEB_UI_ALL_VERSION=` for an official-core-only deployment.
@@ -32,6 +32,8 @@ Official DSH web profile :3080
 - Optional Web UI aggregate plugin (`0.1.12`, the version validated on RC.8).
 - Nginx HTTP→HTTPS redirect, TLS, Basic Auth, WebSocket/SSE support, upload sizing, and stripped upstream Basic credentials.
 - An optional client-only authenticated-edge bridge that restores Models and plugin settings in RC.8 public browsers without patching core.
+- Optional bundled `dsh-shift-router` 0.6.0: Fast/Smart routing, Smart CTO
+  orchestration, and six-class deployment-aware subagent routing.
 - A systemd DSH service and a root-owned package-change watcher that can restart it safely.
 - Safe upgrades with complete DSH dependency-tree validation and automatic rollback.
 - `scripts/verify.sh`, which validates:
@@ -90,6 +92,24 @@ RC.8 otherwise restricts its settings and credential plane to loopback page URLs
 
 The bundled `dsh-better-sidebar-skin-yield` plugin moves sidebar controls below fake-window skin title bars using a stable CSS-module suffix rather than a generated class hash.
 
+The bundled `dsh-shift-router` is installed as a persistent local plugin when
+`SHIFT_ROUTER_ENABLED=true` (the default). It reads the provider/model directory
+from the running deployment rather than carrying a fixed model table:
+
+- `opencode-go` and `qwen-token-plan-cn` are subscription routes;
+- every user-declared custom provider is always PAYG;
+- workers are classified as `tiny`, `fast`, `code`, `smart`, `heavy`, or `image`;
+- quota/auth/config failures move to a finite next provider/model instead of
+  looping a broken route;
+- `/router catalog` shows the live classification and `/router status` confirms
+  the agent-scoped subagent tool and orchestration state.
+
+Configure the Fast and Smart chains in **Settings → Plugins → Shift-Router** or
+with `/router config`. The installer applies only Shift-Router's profile-local
+RC.8 settings whitelist shim; the globally installed DSH core remains untouched.
+The obsolete standalone `dsh-agent-orchestrator` is removed when present because
+its functionality is integrated into Shift-Router.
+
 ## Upgrade or rollback
 
 Always specify an exact target version:
@@ -114,6 +134,8 @@ The certificate paths are persisted in `/opt/dsh-deploy/tls.env`, so a later ins
 
 ```text
 install.sh
+plugins/
+  dsh-shift-router/
 scripts/
   dsh-autorestart.sh
   patch-plugins-key.sh
