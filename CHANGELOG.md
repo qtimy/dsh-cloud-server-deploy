@@ -1,22 +1,30 @@
 # Changelog
 
+## Unreleased
+
+## 0.3.0-rc.1 — 2026-08-21
+
+- Pin the tested DSH baseline to `0.1.1-rc.1`.
+- Generate optional API-key references using the RC.1 versioned credentials
+  schema.
+- Preserve settings, credentials, profile files, and Cordis patches during an
+  automatic rollback.
+- Allow more startup time and verify both current and legacy direct-upstream
+  browser behavior without weakening the authenticated HTTPS boundary.
+
+- Reduce the repository to the official DSH core/web profile and generic HTTPS
+  exposure layer.
+- Move all plugin source, plugin installation policy, provider catalogs, and
+  model-routing policy to a separate plugin collection.
+- Change the default unprivileged service account from a cloud-image-specific
+  username to `dsh`.
+- Remove deployment-specific audit data and plugin-specific verification.
+
 ## 0.2.0-rc.8 — 2026-08-20
 
-- Upgrade the tested DSH baseline from `0.1.0-rc.7` to `0.1.0-rc.8`.
-- Keep the official global DSH installation clean; remove the realtime source patch from the default deployment and upgrade paths.
-- Install `@linxin666/dsh-web-ui-all` through `dsh plugin` as an optional, pinned profile dependency.
-- Add full core/profile/plugin/runtime verification with `scripts/verify.sh`.
-- Make updates exact-version-only, stop the service during package replacement, validate the complete DSH dependency tree, and roll back automatically.
-- Preserve existing settings, credentials, and profile manifests on installer reruns.
-- Fix the fresh-clone repository-root resolution bug.
-- Fix deployment-directory creation ordering.
-- Fix the auto-restart unit's script path and permission model.
-- Use Node.js 22 for RC.8 and plugin compatibility.
-- Disable `remote-web-ui` by default behind Nginx Basic Auth.
-- Use bcrypt for Basic Auth and strip its `Authorization` header before proxying to DSH.
-- Add static CI and document the live RC.8 audit.
-- Preserve Let's Encrypt certificate paths across installer reruns.
-
-## 0.1.0-rc.7 — 2026-08-19
-
-- Initial published deployment template.
+- Pin the tested DSH baseline to `0.1.0-rc.8`.
+- Preserve the official global DSH installation without source patches.
+- Add Nginx TLS and Basic Auth, a loopback systemd service, exact-version
+  updates with rollback, and full-tree verification.
+- Add an authenticated-edge bridge for RC.8 browser settings without modifying
+  the DSH core.

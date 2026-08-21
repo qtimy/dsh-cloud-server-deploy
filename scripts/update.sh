@@ -18,14 +18,14 @@ fi
 # shellcheck disable=SC1091
 [[ -f "${DEPLOY_DIR}/deploy.env" ]] && source "${DEPLOY_DIR}/deploy.env"
 
-DSH_USER="${DSH_USER:-ubuntu}"
+DSH_USER="${DSH_USER:-dsh}"
 DSH_PORT="${DSH_PORT:-3080}"
 DSH_HOME_TARGET="/home/${DSH_USER}/.dsh"
 PROFILE="${DSH_HOME_TARGET}/profiles/web"
 TARGET="${1:-}"
 
 if [[ ! "${TARGET}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$ ]]; then
-  echo "ERROR: provide an exact target version, for example 0.1.0-rc.8." >&2
+  echo "ERROR: provide an exact target version, for example 0.1.1-rc.1." >&2
   exit 2
 fi
 
@@ -42,8 +42,14 @@ mkdir -p "${BACKUP}"
 cp "${PROFILE}/package.json" "${BACKUP}/package.json"
 cp "${PROFILE}/pnpm-lock.yaml" "${BACKUP}/pnpm-lock.yaml"
 cp "${DSH_HOME_TARGET}/settings.yaml" "${BACKUP}/settings.yaml"
+if [[ -f "${DSH_HOME_TARGET}/.credentials.yaml" ]]; then
+  cp "${DSH_HOME_TARGET}/.credentials.yaml" "${BACKUP}/.credentials.yaml"
+fi
 if [[ -f "${DSH_HOME_TARGET}/cordis.patch.yml" ]]; then
   cp "${DSH_HOME_TARGET}/cordis.patch.yml" "${BACKUP}/cordis.patch.yml"
+fi
+if [[ -f "${PROFILE}/cordis.patch.yml" ]]; then
+  cp "${PROFILE}/cordis.patch.yml" "${BACKUP}/profile-cordis.patch.yml"
 fi
 chown -R "${DSH_USER}:${DSH_USER}" "${BACKUP}"
 
@@ -53,10 +59,20 @@ rollback() {
   set +e
   echo "FAILED (exit ${rc}); rolling core back to ${OLD_DSH}." >&2
   npm install -g "@deepseek-ai/dsh@${OLD_DSH}"
-  if [[ -x "${DEPLOY_DIR}/patch-plugins-key.sh" ]]; then
-    sudo -u "${DSH_USER}" -H env DSH_HOME="${DSH_HOME_TARGET}" \
-      bash "${DEPLOY_DIR}/patch-plugins-key.sh"
+  cp "${BACKUP}/package.json" "${PROFILE}/package.json"
+  cp "${BACKUP}/pnpm-lock.yaml" "${PROFILE}/pnpm-lock.yaml"
+  cp "${BACKUP}/settings.yaml" "${DSH_HOME_TARGET}/settings.yaml"
+  if [[ -f "${BACKUP}/.credentials.yaml" ]]; then
+    cp "${BACKUP}/.credentials.yaml" "${DSH_HOME_TARGET}/.credentials.yaml"
+    chmod 600 "${DSH_HOME_TARGET}/.credentials.yaml"
   fi
+  if [[ -f "${BACKUP}/cordis.patch.yml" ]]; then
+    cp "${BACKUP}/cordis.patch.yml" "${DSH_HOME_TARGET}/cordis.patch.yml"
+  fi
+  if [[ -f "${BACKUP}/profile-cordis.patch.yml" ]]; then
+    cp "${BACKUP}/profile-cordis.patch.yml" "${PROFILE}/cordis.patch.yml"
+  fi
+  chown -R "${DSH_USER}:${DSH_USER}" "${DSH_HOME_TARGET}"
   systemctl restart dsh-web
   "${DEPLOY_DIR}/verify.sh" "${OLD_DSH}" || true
   echo "Rollback attempted; inspect journalctl -u dsh-web -n 100." >&2
@@ -64,25 +80,18 @@ rollback() {
 }
 trap rollback ERR
 
-echo "===== 1/5 verify release ${TARGET} ====="
+echo "===== 1/4 verify release ${TARGET} ====="
 npm view "@deepseek-ai/dsh@${TARGET}" version >/dev/null
 
-echo "===== 2/5 install a clean pinned core ====="
+echo "===== 2/4 install a clean pinned core ====="
 systemctl stop dsh-web
 npm install -g "@deepseek-ai/dsh@${TARGET}"
 [[ "$(dsh --version)" == "${TARGET}" ]]
 
-echo "===== 3/5 validate core and profile offline ====="
+echo "===== 3/4 validate core and profile offline ====="
 DSH_VERIFY_RUNTIME=0 "${DEPLOY_DIR}/verify.sh" "${TARGET}"
 
-echo "===== 4/5 apply plugin-owned compatibility only ====="
-if [[ -x "${DEPLOY_DIR}/patch-plugins-key.sh" ]]; then
-  sudo -u "${DSH_USER}" -H env DSH_HOME="${DSH_HOME_TARGET}" \
-    bash "${DEPLOY_DIR}/patch-plugins-key.sh"
-fi
-sudo -u "${DSH_USER}" -H dsh --profile web --dump-config >/dev/null
-
-echo "===== 5/5 restart and verify ====="
+echo "===== 4/4 restart and verify ====="
 systemctl start dsh-web
 "${DEPLOY_DIR}/verify.sh" "${TARGET}"
 

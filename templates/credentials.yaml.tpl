@@ -1,11 +1,5 @@
-# DSH 部署模板 —— credentials 模板
-#
-# 说明：本仓库不预设任何具体的密钥变量名。
-# 如在 settings.yaml 中通过 apiKeyEnv 指定了环境变量读取密钥，
-# 请在此处按相同变量名声明映射（值由 .env 注入，不落明文）。
-#
-# 示例：
-# MY_PROVIDER_API_KEY: ${MY_PROVIDER_API_KEY}
-
-# ---- 默认留空，按需添加 ----
+# Empty by default. If *_API_KEY variables are present in .env, install.sh
+# creates DSH's versioned credential document and stores them under refs.
+# 默认留空；如果 .env 中有 *_API_KEY 变量，install.sh 会按 DSH 的版本化
+# credentials 格式将其写入 refs。
 {}

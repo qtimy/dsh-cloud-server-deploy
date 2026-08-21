@@ -18,7 +18,7 @@ fi
 # shellcheck disable=SC1091
 [[ -f "${DEPLOY_DIR}/deploy.env" ]] && source "${DEPLOY_DIR}/deploy.env"
 
-DSH_USER="${DSH_USER:-ubuntu}"
+DSH_USER="${DSH_USER:-dsh}"
 DSH_PORT="${DSH_PORT:-3080}"
 DSH_HOME_TARGET="/home/${DSH_USER}/.dsh"
 PROFILE="${DSH_HOME_TARGET}/profiles/web"
@@ -80,6 +80,9 @@ if [[ -s "${config_errors}" ]]; then
   exit 1
 fi
 echo "[verify] generated plugin configuration is clean"
+[[ -s "${DEPLOY_DIR}/dsh-public-settings-bootstrap.js" ]]
+grep -q 'dsh-public-settings-bootstrap.js' /etc/nginx/sites-available/dsh
+echo "[verify] authenticated-edge settings bootstrap is installed"
 
 if [[ "${DSH_VERIFY_RUNTIME}" == 0 ]]; then
   echo "[verify] offline checks complete"
@@ -87,7 +90,7 @@ if [[ "${DSH_VERIFY_RUNTIME}" == 0 ]]; then
 fi
 
 echo "[verify] services and upstream"
-for _ in $(seq 1 15); do
+for _ in $(seq 1 60); do
   if systemctl is-active --quiet dsh-web && \
      curl -fsS -o /dev/null "http://127.0.0.1:${DSH_PORT}/"; then
     break
@@ -97,6 +100,24 @@ done
 systemctl is-active --quiet dsh-web
 systemctl is-active --quiet nginx
 curl -fsS -o /dev/null "http://127.0.0.1:${DSH_PORT}/"
+edge_html="$(curl -kfsS https://127.0.0.1/)"
+grep -q '<script src="/dsh-public-settings-bootstrap.js"></script>' <<< "${edge_html}"
+[[ "$(curl -ksS -o /dev/null -w '%{http_code}' \
+  https://127.0.0.1/dsh-public-settings-bootstrap.js)" == 200 ]]
+edge_bootstrap_type="$(curl -ksSI https://127.0.0.1/dsh-public-settings-bootstrap.js | \
+  sed -n 's/^[Cc]ontent-[Tt]ype: *//p' | tr -d '\r')"
+direct_bootstrap_type="$(curl -sSI \
+  "http://127.0.0.1:${DSH_PORT}/dsh-public-settings-bootstrap.js" | \
+  sed -n 's/^[Cc]ontent-[Tt]ype: *//p' | tr -d '\r')"
+direct_bootstrap_status="$(curl -sS -o /dev/null -w '%{http_code}' \
+  "http://127.0.0.1:${DSH_PORT}/dsh-public-settings-bootstrap.js")"
+[[ "${edge_bootstrap_type}" == application/javascript* ]]
+if [[ "${direct_bootstrap_status}" == 200 ]]; then
+  [[ "${direct_bootstrap_type}" == text/html* ]]
+else
+  [[ "${direct_bootstrap_status}" == 404 ]]
+fi
+echo "[verify] authenticated edge injects bootstrap; direct upstream does not"
 
 pid_before="$(systemctl show -p MainPID --value dsh-web)"
 sleep 10
@@ -106,7 +127,7 @@ if [[ "${pid_before}" == 0 || "${pid_before}" != "${pid_after}" ]]; then
   exit 1
 fi
 
-echo "[verify] third-party client bundles"
+echo "[verify] installed client bundles"
 while IFS= read -r package_name; do
   [[ -n "${package_name}" ]] || continue
   code="$(curl -sS -o /dev/null -w '%{http_code}' \
@@ -148,4 +169,4 @@ if journalctl -u dsh-web --since "${active_since}" --no-pager 2>/dev/null | \
   exit 1
 fi
 
-echo "[verify] OK: clean core, valid plugins, stable PID ${pid_after}, upstream HTTP 200"
+echo "[verify] OK: clean core, valid profile, stable PID ${pid_after}, upstream HTTP 200"

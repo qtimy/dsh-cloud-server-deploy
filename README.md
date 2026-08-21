@@ -1,133 +1,112 @@
-# DSH Cloud Server Deploy — clean-core RC.8
+# DSH Cloud Server Deploy
 
-Deploy [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness) on an Ubuntu/Debian cloud server with a deliberately small boundary:
+[English](README.md) | [简体中文](README.zh-CN.md)
 
-- official `@deepseek-ai/dsh` core, pinned to an exact version;
-- the official `dsh-base` + `dsh-web-app` profile bundles;
-- optional packages installed only through `dsh plugin`;
-- Nginx TLS, Basic Auth, WebSocket/SSE proxying, and systemd supervision.
+A small, public deployment layer for exposing the official DeepSeek Harness
+(DSH) web application over HTTPS on Ubuntu or Debian.
 
-The installer does **not** patch files inside the global DSH package. RC.8 was tested on the reference EC2 instance with the official core restored byte-for-byte; the service and installed plugins remained healthy.
+This repository contains only:
 
-## Architecture
+- the pinned official `@deepseek-ai/dsh` core;
+- the official `dsh-base` and `dsh-web-app` profile bundles;
+- a loopback-only systemd service;
+- Nginx TLS, Basic Auth, WebSocket/SSE proxying, and an HTTP-to-HTTPS redirect;
+- an optional authenticated-edge compatibility bridge for browser settings;
+- version-pinned update, rollback, and verification helpers.
+
+It does not contain or install community plugins, provider choices, model routing
+rules, API keys, hostnames, IP addresses, certificates, or deployment-specific
+configuration. Plugins are maintained in a separate plugin collection.
+
+## Boundary
 
 ```text
-Internet
-   │ HTTPS + Basic Auth
-   ▼
-Nginx :443
-   │ loopback proxy
-   ▼
-Official DSH web profile :3080
-   ├── @deepseek-ai/dsh-base       (core)
-   ├── @deepseek-ai/dsh-web-app    (core)
-   └── profile packages            (plugins)
+Browser
+  -> HTTPS + Basic Auth
+  -> Nginx :443
+  -> loopback HTTP
+  -> official DSH web profile :3080
+       - @deepseek-ai/dsh-base
+       - @deepseek-ai/dsh-web-app
 ```
 
-`@linxin666/dsh-web-ui-all` is enabled by default in `.env.example`, but it is installed through the official plugin command and remains a removable profile dependency. Set `WEB_UI_ALL_VERSION=` for an official-core-only deployment.
+The installer never patches the globally installed DSH package. The small
+browser-settings bridge is injected by Nginx only into pages that have passed
+Basic Auth. DSH itself remains bound to `127.0.0.1`.
 
-## What is included
-
-- Exact-version DSH installation (`0.1.0-rc.8` in this release).
-- Optional Web UI aggregate plugin (`0.1.12`, the version validated on RC.8).
-- Nginx HTTP→HTTPS redirect, TLS, Basic Auth, WebSocket/SSE support, upload sizing, and stripped upstream Basic credentials.
-- A systemd DSH service and a root-owned package-change watcher that can restart it safely.
-- Safe upgrades with complete DSH dependency-tree validation and automatic rollback.
-- `scripts/verify.sh`, which validates:
-  - every installed `@deepseek-ai/dsh-*` package matches the target version;
-  - profile JSON and generated Cordis configuration;
-  - no plugin uses a volatile `link:/tmp` dependency;
-  - linked plugin targets exist;
-  - systemd/Nginx/upstream health;
-  - every discovered third-party client bundle is served with HTTP 200;
-  - the current DSH boot has no plugin/runtime errors.
-
-## Quick start
+## Install
 
 ```bash
-git clone https://github.com/qtimy/dsh-cloud-server-deploy.git
+git clone https://github.com/<github-account>/dsh-cloud-server-deploy.git
 cd dsh-cloud-server-deploy
 cp .env.example .env
-# Edit TRUSTED_HOST and BASIC_AUTH_PASSWORD at minimum.
+# Set TRUSTED_HOST and BASIC_AUTH_PASSWORD.
 sudo bash install.sh
 ```
 
-Then open `https://<TRUSTED_HOST>/`. A self-signed certificate is created by default, so the browser will show a warning until you install a trusted certificate.
-
-For a core-only profile, set this before installation:
-
-```bash
-WEB_UI_ALL_VERSION=
-```
-
-## Configuration ownership
-
-- Core: globally installed `@deepseek-ai/dsh`; never modified by this repository.
-- Profile: `/home/<user>/.dsh/profiles/web/package.json` and its plugin dependencies.
-- User settings and credentials: `/home/<user>/.dsh/settings.yaml` and `.credentials.yaml`.
-- Public edge: `/etc/nginx/sites-available/dsh` and `/etc/nginx/.htpasswd`.
-- Service runtime: `/etc/systemd/system/dsh-web.service`.
-- Deployment helpers: `/opt/dsh-deploy` by default.
-
-Re-running `install.sh` preserves existing DSH settings, credentials, and profile manifests. It installs missing templates only, reconciles the requested optional plugin, refreshes the public/service structure, and verifies the result.
-
-## Plugins
-
-Install additional functionality through DSH rather than editing core files:
-
-```bash
-sudo -u ubuntu -H dsh plugin --profile web add package-name@exact-version
-sudo -u ubuntu -H dsh plugin --profile web remove package-name
-sudo /opt/dsh-deploy/verify.sh
-```
-
-Persistent local plugins must live under a durable path such as `/home/ubuntu/.dsh/plugins/<name>`. Never install a profile dependency from `/tmp`; the verifier rejects such links.
-
-The Web UI `settings.plugin.item` compatibility fix is intentionally limited to the plugin's own generated client file. It does not touch DSH core.
-
-## Upgrade or rollback
-
-Always specify an exact target version:
-
-```bash
-sudo /opt/dsh-deploy/update.sh 0.1.0-rc.8
-```
-
-The updater backs up profile manifests, stops DSH, installs the pinned core, validates the complete DSH package tree, checks plugins without upgrading them, restarts, and performs a stability check. Any failure attempts an automatic rollback to the previous DSH version.
-
-## Trusted certificate (optional)
-
-After DNS points to the server and port 80 is publicly reachable:
+Open `https://<TRUSTED_HOST>/`. The default self-signed certificate encrypts the
+connection but produces a browser warning. To obtain a trusted certificate after
+DNS and port 80 are ready:
 
 ```bash
 sudo bash scripts/setup-letsencrypt.sh dsh.example.com admin@example.com
 ```
 
-The certificate paths are persisted in `/opt/dsh-deploy/tls.env`, so a later installer run keeps the trusted certificate.
+## Configuration
 
-## Repository layout
+`.env` is intentionally ignored. Its public template uses placeholders only.
 
-```text
-install.sh
-scripts/
-  dsh-autorestart.sh
-  patch-plugins-key.sh
-  setup-letsencrypt.sh
-  update.sh
-  verify.sh
-templates/
-nginx/
-systemd/
-tests/
-docs/
+- `DSH_VERSION`: exact DSH version; ranges and `latest` are rejected.
+- `TRUSTED_HOST`: public hostname or IP accepted by DSH.
+- `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD`: Nginx credentials.
+- `PUBLIC_SETTINGS_OVER_BASIC_AUTH`: enable the authenticated-edge bridge.
+- `DSH_USER`: unprivileged service account, `dsh` by default.
+- `DSH_PORT`: loopback port, `3080` by default.
+- `DEPLOY_DIR`: root-owned helper directory, `/opt/dsh-deploy` by default.
+- `SSL_CERT_PATH` / `SSL_KEY_PATH`: optional existing certificate paths.
+
+Variables ending in `_API_KEY` may be placed in the local `.env`; on first
+install they are written to the service user's mode-0600 DSH credentials file.
+They are never written into this repository.
+
+## Updates and checks
+
+Use an exact target version:
+
+```bash
+sudo /opt/dsh-deploy/update.sh 0.1.1-rc.1
+sudo /opt/dsh-deploy/verify.sh
 ```
 
-See [the RC.8 live audit](docs/live-audit-rc8.md) and [the changelog](CHANGELOG.md) for the evidence behind this release.
+The updater stops DSH, installs the exact version, validates the full official
+DSH dependency tree, and rolls back on failure. The verifier checks the profile,
+linked dependencies, generated Cordis configuration, Nginx/systemd health,
+browser bundles, the authenticated-edge boundary, and current-boot errors.
 
-## Security notes
+## Adding plugins
 
-- Never commit `.env`; it contains the Basic Auth password and may contain API keys.
-- The generated password file uses bcrypt and is readable only by root/Nginx.
-- Nginx authenticates public traffic and removes the Basic `Authorization` header before proxying to DSH.
-- DSH listens only on `127.0.0.1`; expose ports 80/443, not 3080.
-- The optional self-signed certificate encrypts traffic but does not provide public identity verification.
+Keep plugin code outside this repository. Install packages with DSH's plugin
+command, or use the separate plugin collection:
+
+```bash
+sudo -u dsh -H dsh plugin --profile web add package-name@exact-version
+sudo /opt/dsh-deploy/verify.sh
+```
+
+For a different `DSH_USER`, substitute that account. Persistent local plugins
+must not be linked from temporary directories.
+
+## Security
+
+- Commit neither `.env` nor generated credentials, keys, certificates, logs, or
+  settings.
+- Expose ports 80 and 443 only; do not expose DSH's loopback port.
+- Nginx removes its Basic `Authorization` header before proxying to DSH.
+- The password file uses bcrypt and is readable only by root and Nginx.
+- Disable `PUBLIC_SETTINGS_OVER_BASIC_AUTH` unless the entire public edge is
+  protected by the authentication boundary in this repository.
+
+## License
+
+MIT. DeepSeek Harness and any separately installed plugins retain their own
+licenses and copyright notices.
