@@ -87,7 +87,7 @@ sudo bash scripts/setup-letsencrypt.sh dsh.example.com admin@example.com
 使用精确目标版本：
 
 ```bash
-sudo /opt/dsh-deploy/update.sh 0.1.1-rc.1
+sudo /opt/dsh-deploy/update.sh 0.1.1-rc.2
 sudo /opt/dsh-deploy/verify.sh
 ```
 

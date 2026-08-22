@@ -96,7 +96,7 @@ boundary applies to this repository's deployment scripts.
 Use an exact target version:
 
 ```bash
-sudo /opt/dsh-deploy/update.sh 0.1.1-rc.1
+sudo /opt/dsh-deploy/update.sh 0.1.1-rc.2
 sudo /opt/dsh-deploy/verify.sh
 ```
 

@@ -30,7 +30,7 @@ PROFILE="${DSH_HOME_TARGET}/profiles/web"
 TARGET="${1:-}"
 
 if [[ ! "${TARGET}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$ ]]; then
-  echo "ERROR: provide an exact target version, for example 0.1.1-rc.1." >&2
+  echo "ERROR: provide an exact target version, for example 0.1.1-rc.2." >&2
   exit 2
 fi
 

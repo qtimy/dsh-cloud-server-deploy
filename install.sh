@@ -51,7 +51,7 @@ PROFILE_DIR="${DSH_HOME_TARGET}/profiles/web"
 
 exact_version_re='^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$'
 if [[ ! "${DSH_VERSION}" =~ ${exact_version_re} ]]; then
-  echo "ERROR: DSH_VERSION must be an exact version (for example 0.1.1-rc.1)." >&2
+  echo "ERROR: DSH_VERSION must be an exact version (for example 0.1.1-rc.2)." >&2
   exit 2
 fi
 if [[ "${PUBLIC_SETTINGS_OVER_BASIC_AUTH}" != true && "${PUBLIC_SETTINGS_OVER_BASIC_AUTH}" != false ]]; then

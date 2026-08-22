@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.3.1-rc.2 — 2026-08-22
+
+- Pin the tested DSH baseline to `0.1.1-rc.2`.
+- Keep the official DSH core unmodified while retaining exact-version update,
+  rollback, dependency-tree, profile, service, and HTTPS-edge verification.
+
 - Detect clean versus existing DSH home state before creating deployment files.
 - Remove provider-credential discovery, import, templating, backup, restoration,
   and ownership changes from the installer and updater.
