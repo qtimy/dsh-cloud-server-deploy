@@ -37,7 +37,7 @@ DeepSeek Harness（DSH）Web 应用。
 ```bash
 git clone https://github.com/<github-account>/dsh-cloud-server-deploy.git
 cd dsh-cloud-server-deploy
-cp .env.example .env
+cp deploy.conf.example deploy.conf
 # 设置 TRUSTED_HOST 和 BASIC_AUTH_PASSWORD。
 sudo bash install.sh
 ```
@@ -51,7 +51,13 @@ sudo bash scripts/setup-letsencrypt.sh dsh.example.com admin@example.com
 
 ## 配置
 
-`.env` 已被忽略，公开模板仅使用占位符。
+`deploy.conf` 已被忽略，公开模板仅使用占位符。安装程序只读取下方列出的部署
+变量，将变量值视为普通文本，绝不会把该文件作为 shell 脚本 source 或执行。
+未知条目不会被导出。请勿在此文件中存放提供方凭据。
+
+安装程序绝不会打开旧版 `.env`。本仓库早期版本曾允许在该文件中保存提供方
+密钥，因此现有用户必须基于新示例创建 `deploy.conf`，并且只复制下方列出的
+部署字段。这种文件级隔离可防止安装程序读取旧的提供方密钥值。
 
 - `DSH_VERSION`：DSH 精确版本；拒绝版本范围和 `latest`。
 - `TRUSTED_HOST`：DSH 接受的公开主机名或 IP。
@@ -62,8 +68,19 @@ sudo bash scripts/setup-letsencrypt.sh dsh.example.com admin@example.com
 - `DEPLOY_DIR`：root 管理的工具目录，默认为 `/opt/dsh-deploy`。
 - `SSL_CERT_PATH` / `SSL_KEY_PATH`：可选的现有证书路径。
 
-本地 `.env` 可以包含以 `_API_KEY` 结尾的变量；首次安装时，它们会按当前
-DSH 凭据格式写入服务账户权限为 0600 的凭据文件，且不会写入本仓库。
+### 提供方凭据边界
+
+在修改 DSH home 之前，`install.sh` 会先判断本次运行是全新安装（DSH home
+不存在）还是升级（DSH home 已存在）。
+
+- 全新安装：禁用提供方凭据发现和导入。部署程序不会创建 DSH 凭据文件；
+  请在部署通过健康检查后，通过 DSH 配置提供方。
+- 升级：现有 DSH 凭据存储保持原位。安装程序和更新程序都不会打开、复制、
+  恢复、修改其权限或所有者，也不会删除它。
+
+凭据文件会被明确排除在自动部署备份和回滚之外，因为访问它们会破坏上述
+边界。如需备份，请使用您自己的密钥管理流程单独完成。DSH 在提供已配置的
+模型服务时仍会正常使用自己的凭据存储；上述边界仅适用于本仓库的部署脚本。
 
 ## 更新与检查
 
@@ -77,6 +94,8 @@ sudo /opt/dsh-deploy/verify.sh
 更新程序会停止 DSH、安装精确版本、验证完整官方依赖树，并在失败时自动
 回滚。验证程序会检查 profile、依赖链接、生成的 Cordis 配置、Nginx/systemd
 状态、浏览器 bundles、authenticated-edge 边界和当前启动日志错误。
+回滚包含 profile、settings 和 Cordis patches，但会有意避免访问 DSH 凭据
+存储。
 
 ## 添加插件
 
@@ -93,7 +112,8 @@ sudo /opt/dsh-deploy/verify.sh
 
 ## 安全
 
-- 不要提交 `.env`、生成的凭据、密钥、证书、日志或 settings。
+- 不要提交 `deploy.conf`、旧版 `.env`、生成的凭据、密钥、证书、日志或
+  settings。
 - 只开放 80 和 443 端口，不要开放 DSH loopback 端口。
 - Nginx 在转发到 DSH 前会移除 Basic `Authorization` 请求头。
 - 密码文件使用 bcrypt，且仅 root 与 Nginx 可读。

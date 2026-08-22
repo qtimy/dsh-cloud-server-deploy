@@ -2,6 +2,11 @@
 # Pinned DSH core upgrade with full-tree validation and automatic rollback.
 set -Eeuo pipefail
 
+# CREDENTIAL SAFETY BOUNDARY: the updater never opens or changes DSH's
+# provider-credential store. Backups and rollback include only the explicit
+# non-secret configuration paths named below; DSH keeps its credentials in
+# place throughout the core replacement.
+
 if [[ ${EUID} -ne 0 ]]; then
   echo "ERROR: run as root: sudo $0 <exact-version>" >&2
   exit 2
@@ -42,9 +47,6 @@ mkdir -p "${BACKUP}"
 cp "${PROFILE}/package.json" "${BACKUP}/package.json"
 cp "${PROFILE}/pnpm-lock.yaml" "${BACKUP}/pnpm-lock.yaml"
 cp "${DSH_HOME_TARGET}/settings.yaml" "${BACKUP}/settings.yaml"
-if [[ -f "${DSH_HOME_TARGET}/.credentials.yaml" ]]; then
-  cp "${DSH_HOME_TARGET}/.credentials.yaml" "${BACKUP}/.credentials.yaml"
-fi
 if [[ -f "${DSH_HOME_TARGET}/cordis.patch.yml" ]]; then
   cp "${DSH_HOME_TARGET}/cordis.patch.yml" "${BACKUP}/cordis.patch.yml"
 fi
@@ -62,17 +64,20 @@ rollback() {
   cp "${BACKUP}/package.json" "${PROFILE}/package.json"
   cp "${BACKUP}/pnpm-lock.yaml" "${PROFILE}/pnpm-lock.yaml"
   cp "${BACKUP}/settings.yaml" "${DSH_HOME_TARGET}/settings.yaml"
-  if [[ -f "${BACKUP}/.credentials.yaml" ]]; then
-    cp "${BACKUP}/.credentials.yaml" "${DSH_HOME_TARGET}/.credentials.yaml"
-    chmod 600 "${DSH_HOME_TARGET}/.credentials.yaml"
-  fi
   if [[ -f "${BACKUP}/cordis.patch.yml" ]]; then
     cp "${BACKUP}/cordis.patch.yml" "${DSH_HOME_TARGET}/cordis.patch.yml"
   fi
   if [[ -f "${BACKUP}/profile-cordis.patch.yml" ]]; then
     cp "${BACKUP}/profile-cordis.patch.yml" "${PROFILE}/cordis.patch.yml"
   fi
-  chown -R "${DSH_USER}:${DSH_USER}" "${DSH_HOME_TARGET}"
+  chown "${DSH_USER}:${DSH_USER}" \
+    "${PROFILE}/package.json" \
+    "${PROFILE}/pnpm-lock.yaml" \
+    "${DSH_HOME_TARGET}/settings.yaml"
+  [[ ! -f "${DSH_HOME_TARGET}/cordis.patch.yml" ]] || \
+    chown "${DSH_USER}:${DSH_USER}" "${DSH_HOME_TARGET}/cordis.patch.yml"
+  [[ ! -f "${PROFILE}/cordis.patch.yml" ]] || \
+    chown "${DSH_USER}:${DSH_USER}" "${PROFILE}/cordis.patch.yml"
   systemctl restart dsh-web
   "${DEPLOY_DIR}/verify.sh" "${OLD_DSH}" || true
   echo "Rollback attempted; inspect journalctl -u dsh-web -n 100." >&2

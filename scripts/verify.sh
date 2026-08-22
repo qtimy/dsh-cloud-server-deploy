@@ -72,8 +72,12 @@ NODE
 config_file="$(mktemp)"
 config_errors="$(mktemp)"
 trap 'rm -f "${config_file}" "${config_errors}"' EXIT
-sudo -u "${DSH_USER}" -H dsh --profile web --dump-config \
-  > "${config_file}" 2> "${config_errors}"
+if ! sudo -u "${DSH_USER}" -H dsh --profile web --dump-config \
+  > "${config_file}" 2> "${config_errors}"; then
+  cat "${config_errors}" >&2
+  echo "ERROR: DSH could not generate the web-profile configuration." >&2
+  exit 1
+fi
 if [[ -s "${config_errors}" ]]; then
   cat "${config_errors}" >&2
   echo "ERROR: DSH generated configuration contains warnings/errors." >&2

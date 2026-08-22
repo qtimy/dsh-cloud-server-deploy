@@ -11,10 +11,11 @@ done < <(find . -type f -name '*.sh' -print0)
 node -e 'JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"))' \
   templates/profile-package.json.tpl
 node tests/public-settings-bootstrap.mjs
+node tests/security-contract.mjs
+bash tests/deploy-env-literal.sh
 
 grep -q 'REPO_DIR="${SCRIPT_DIR}"' install.sh
-grep -q 'DSH_VERSION=0.1.1-rc.1' .env.example
-grep -Fq "printf 'version: 1\\nrefs:\\n'" install.sh
+grep -q 'DSH_VERSION=0.1.1-rc.1' deploy.conf.example
 test -s README.zh-CN.md
 grep -q 'proxy_set_header Authorization "";' nginx/dsh.conf.tpl
 grep -q 'alias ${DEPLOY_DIR}/dsh-public-settings-bootstrap.js;' nginx/dsh.conf.tpl

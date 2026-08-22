@@ -1,4 +1,7 @@
-# Copy this file to .env, edit it, and never commit .env.
+# Copy this file to deploy.conf, edit it, and never commit deploy.conf.
+# install.sh loads only the deployment names shown below. It never sources this
+# file or evaluates shell expressions. Configure provider credentials through
+# DSH after installation; do not put provider credentials in this file.
 
 # Public IP address or DNS hostname accepted by dsh-web.
 TRUSTED_HOST=your-server-ip-or-domain
@@ -21,6 +24,3 @@ DEPLOY_DIR=/opt/dsh-deploy
 # Usually blank. setup-letsencrypt.sh persists trusted paths in DEPLOY_DIR/tls.env.
 SSL_CERT_PATH=
 SSL_KEY_PATH=
-
-# Add optional *_API_KEY entries here. The installer writes them to the
-# versioned ~/.dsh/.credentials.yaml schema with YAML-safe quoted values.

@@ -2,35 +2,50 @@
 # Official-core DSH HTTPS installer. Run from the repository root with sudo.
 set -Eeuo pipefail
 
+# Report only the failing line and status. Do not print the command because it
+# may contain the deployment's Basic Auth password or certificate paths.
+trap 'rc=$?; echo "ERROR: install.sh failed at line ${LINENO} (exit ${rc})." >&2; exit "${rc}"' ERR
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="${SCRIPT_DIR}"
-ENV_FILE="${REPO_DIR}/.env"
+CONFIG_FILE="${REPO_DIR}/deploy.conf"
 
 if [[ ${EUID} -ne 0 ]]; then
   echo "ERROR: run with sudo bash install.sh" >&2
   exit 2
 fi
-if [[ ! -f "${ENV_FILE}" ]]; then
-  echo "ERROR: ${ENV_FILE} is missing." >&2
-  echo "Run: cp ${REPO_DIR}/.env.example ${ENV_FILE}, then edit it." >&2
+if [[ ! -f "${CONFIG_FILE}" ]]; then
+  echo "ERROR: ${CONFIG_FILE} is missing." >&2
+  echo "Run: cp ${REPO_DIR}/deploy.conf.example ${CONFIG_FILE}, then edit it." >&2
   exit 2
 fi
 
-# The operator owns this file; exporting lets template variables and API-key
-# names remain available to child commands without putting secrets in the repo.
-set -a
-# shellcheck disable=SC1090
-source "${ENV_FILE}"
-set +a
+# SECURITY BOUNDARY: deploy.conf contains deployment settings only. Load only
+# the names explicitly requested below. Never `source` this
+# operator-controlled file, evaluate its values as shell, or export unknown
+# entries to child processes. Never open the legacy .env: earlier releases
+# allowed provider secrets there. Provider credentials remain entirely DSH-owned.
+read_deploy_setting() {
+  local name=$1 fallback=$2 line
+  line="$(grep -m1 -E "^${name}=" "${CONFIG_FILE}" || true)"
+  line="${line%$'\r'}"
+  if [[ -n "${line}" ]]; then
+    printf '%s' "${line#*=}"
+  else
+    printf '%s' "${fallback}"
+  fi
+}
 
-DSH_VERSION="${DSH_VERSION:-}"
-PUBLIC_SETTINGS_OVER_BASIC_AUTH="${PUBLIC_SETTINGS_OVER_BASIC_AUTH:-true}"
-DSH_PORT="${DSH_PORT:-3080}"
-DSH_USER="${DSH_USER:-dsh}"
-DEPLOY_DIR="${DEPLOY_DIR:-/opt/dsh-deploy}"
-TRUSTED_HOST="${TRUSTED_HOST:-}"
-BASIC_AUTH_USER="${BASIC_AUTH_USER:-dsh}"
-BASIC_AUTH_PASSWORD="${BASIC_AUTH_PASSWORD:-}"
+DSH_VERSION="$(read_deploy_setting DSH_VERSION '')"
+PUBLIC_SETTINGS_OVER_BASIC_AUTH="$(read_deploy_setting PUBLIC_SETTINGS_OVER_BASIC_AUTH true)"
+DSH_PORT="$(read_deploy_setting DSH_PORT 3080)"
+DSH_USER="$(read_deploy_setting DSH_USER dsh)"
+DEPLOY_DIR="$(read_deploy_setting DEPLOY_DIR /opt/dsh-deploy)"
+TRUSTED_HOST="$(read_deploy_setting TRUSTED_HOST '')"
+BASIC_AUTH_USER="$(read_deploy_setting BASIC_AUTH_USER dsh)"
+BASIC_AUTH_PASSWORD="$(read_deploy_setting BASIC_AUTH_PASSWORD '')"
+SSL_CERT_PATH="$(read_deploy_setting SSL_CERT_PATH '')"
+SSL_KEY_PATH="$(read_deploy_setting SSL_KEY_PATH '')"
 DSH_HOME_TARGET="/home/${DSH_USER}/.dsh"
 PROFILE_DIR="${DSH_HOME_TARGET}/profiles/web"
 
@@ -44,7 +59,7 @@ if [[ "${PUBLIC_SETTINGS_OVER_BASIC_AUTH}" != true && "${PUBLIC_SETTINGS_OVER_BA
   exit 2
 fi
 if [[ -z "${TRUSTED_HOST}" || "${TRUSTED_HOST}" == "your-server-ip-or-domain" ]]; then
-  echo "ERROR: set TRUSTED_HOST in .env." >&2
+  echo "ERROR: set TRUSTED_HOST in deploy.conf." >&2
   exit 2
 fi
 if [[ ! "${TRUSTED_HOST}" =~ ^[A-Za-z0-9.-]+(:[0-9]+)?$ ]]; then
@@ -56,7 +71,7 @@ if [[ ! "${BASIC_AUTH_USER}" =~ ^[A-Za-z0-9._-]+$ ]]; then
   exit 2
 fi
 if [[ -z "${BASIC_AUTH_PASSWORD}" || "${BASIC_AUTH_PASSWORD}" == "change-me-strong-password" ]]; then
-  echo "ERROR: set a strong BASIC_AUTH_PASSWORD in .env." >&2
+  echo "ERROR: set a strong BASIC_AUTH_PASSWORD in deploy.conf." >&2
   exit 2
 fi
 if [[ ! "${DSH_PORT}" =~ ^[0-9]+$ ]] || (( DSH_PORT < 1 || DSH_PORT > 65535 )); then
@@ -67,6 +82,18 @@ if [[ ! "${DSH_USER}" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
   echo "ERROR: invalid DSH_USER: ${DSH_USER}" >&2
   exit 2
 fi
+
+# Determine the mode before creating or changing any DSH home state. Testing
+# only the home path is intentional: neither branch opens, stats, creates,
+# copies, changes, or removes DSH's credential store.
+if [[ -e "${DSH_HOME_TARGET}" || -L "${DSH_HOME_TARGET}" ]]; then
+  INSTALL_MODE=upgrade
+  echo "Install mode: upgrade; existing DSH provider credentials stay untouched."
+else
+  INSTALL_MODE=clean
+  echo "Install mode: clean; provider credential discovery and import are disabled."
+fi
+readonly INSTALL_MODE
 
 echo "===== 1/7 system dependencies ====="
 export DEBIAN_FRONTEND=noninteractive
@@ -98,7 +125,14 @@ echo "===== 3/7 user and official web profile ====="
 if ! id "${DSH_USER}" >/dev/null 2>&1; then
   useradd --create-home --shell /bin/bash "${DSH_USER}"
 fi
-mkdir -p "${DSH_HOME_TARGET}"/{profiles/web,sessions,plugins,storages,marketplace}
+install -d -o "${DSH_USER}" -g "${DSH_USER}" -m 0755 \
+  "${DSH_HOME_TARGET}" \
+  "${DSH_HOME_TARGET}/profiles" \
+  "${PROFILE_DIR}" \
+  "${DSH_HOME_TARGET}/sessions" \
+  "${DSH_HOME_TARGET}/plugins" \
+  "${DSH_HOME_TARGET}/storages" \
+  "${DSH_HOME_TARGET}/marketplace"
 
 install_if_missing() {
   local source=$1 target=$2 mode=$3
@@ -118,26 +152,6 @@ install_if_missing "${REPO_DIR}/templates/cordis.patch.yml.tpl" \
   "${PROFILE_DIR}/cordis.patch.yml" 0644
 install_if_missing "${REPO_DIR}/templates/pnpm-workspace.yaml.tpl" \
   "${PROFILE_DIR}/pnpm-workspace.yaml" 0644
-
-CRED_FILE="${DSH_HOME_TARGET}/.credentials.yaml"
-if [[ ! -e "${CRED_FILE}" ]]; then
-  install -o "${DSH_USER}" -g "${DSH_USER}" -m 0600 \
-    "${REPO_DIR}/templates/credentials.yaml.tpl" "${CRED_FILE}"
-  api_key_vars="$(grep -oE '^[A-Za-z_][A-Za-z0-9_]*_API_KEY=' "${ENV_FILE}" 2>/dev/null | sed 's/=$//' | sort -u)"
-  if [[ -n "${api_key_vars}" ]]; then
-    printf 'version: 1\nrefs:\n' > "${CRED_FILE}"
-    while IFS= read -r variable; do
-      [[ -n "${variable}" ]] || continue
-      printf '  %s: ' "${variable}" >> "${CRED_FILE}"
-      node -e 'process.stdout.write(JSON.stringify(process.argv[1]) + "\n")' \
-        "${!variable:-}" >> "${CRED_FILE}"
-    done <<< "${api_key_vars}"
-    chown "${DSH_USER}:${DSH_USER}" "${CRED_FILE}"
-    chmod 0600 "${CRED_FILE}"
-  fi
-else
-  echo "preserved ${CRED_FILE}"
-fi
 
 chown -R "${DSH_USER}:${DSH_USER}" "${PROFILE_DIR}"
 sudo -u "${DSH_USER}" -H bash -c "cd '${PROFILE_DIR}' && pnpm install --frozen-lockfile=false"

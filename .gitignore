@@ -2,7 +2,8 @@
 .env
 *.env
 .env.*
-!.env.example
+/deploy.conf
+!deploy.conf.example
 
 # credentials 与运行时配置
 .credentials.yaml

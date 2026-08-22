@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Detect clean versus existing DSH home state before creating deployment files.
+- Remove provider-credential discovery, import, templating, backup, restoration,
+  and ownership changes from the installer and updater.
+- Move deployment settings to an allowlisted `deploy.conf` and never open the
+  legacy `.env`, which earlier releases allowed operators to use for API keys.
+- Create the DSH home and `profiles` parent with service-user ownership, and
+  print captured DSH configuration errors when verification fails.
+
 ## 0.3.0-rc.1 — 2026-08-21
 
 - Pin the tested DSH baseline to `0.1.1-rc.1`.
